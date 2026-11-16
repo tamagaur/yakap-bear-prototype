@@ -1,0 +1,152 @@
+@import "tailwindcss";
+
+/*
+ * Yakap Bear design tokens — warm cream, cocoa brown and honey, taken from
+ * the Business Model Canvas look. Shared by the bear simulator, the clinic
+ * dashboard and (later) the family app.
+ */
+@theme {
+  --font-sans: var(--font-nunito), ui-rounded, "Segoe UI", system-ui, sans-serif;
+
+  --color-cream-50: #fffaf3;
+  --color-cream-100: #fdf3e6;
+  --color-cream-200: #f8e6d0;
+  --color-cream-300: #f1d4b2;
+
+  --color-cocoa-950: #2a1a10;
+  --color-cocoa-900: #3b2618;
+  --color-cocoa-800: #4f3322;
+  --color-cocoa-700: #6b4630;
+  --color-cocoa-600: #8a5d3f;
+  --color-cocoa-500: #a87b59;
+  --color-cocoa-400: #c29b7c;
+  --color-cocoa-300: #d9bfa6;
+  --color-cocoa-200: #e9d7c4;
+  --color-cocoa-100: #f4ebe1;
+
+  --color-honey-200: #fbe6b4;
+  --color-honey-300: #f8d589;
+  --color-honey-400: #f3bf55;
+  --color-honey-500: #e8a33a;
+  --color-honey-600: #c9821d;
+  --color-honey-700: #9e6412;
+
+  --color-fur: #b07a4f;
+  --color-fur-dark: #8f5f3b;
+  --color-fur-light: #f4dcc0;
+  --color-paw-pad: #f2c79a;
+
+  --color-taken: #3f8f62;
+  --color-taken-soft: #e3f2e8;
+  --color-taken-ink: #275c3e;
+  --color-late: #d0861c;
+  --color-late-soft: #fbefd9;
+  --color-late-ink: #8a560c;
+  --color-missed: #c2453d;
+  --color-missed-soft: #f9e1de;
+  --color-missed-ink: #8e2a24;
+  --color-away: #8a817b;
+  --color-away-soft: #ece8e4;
+  --color-away-ink: #57504b;
+  --color-upcoming: #3f7fbf;
+  --color-upcoming-soft: #e1edf8;
+  --color-upcoming-ink: #24527f;
+
+  --shadow-soft: 0 1px 2px rgb(59 38 24 / 0.06), 0 8px 24px -12px rgb(59 38 24 / 0.18);
+  --shadow-lift: 0 2px 4px rgb(59 38 24 / 0.08), 0 18px 40px -18px rgb(59 38 24 / 0.32);
+
+  --animate-breathe: breathe 5s ease-in-out infinite;
+  --animate-wiggle: wiggle 1.6s ease-in-out infinite;
+  --animate-led-pulse: led-pulse 1.4s ease-in-out infinite;
+  --animate-led-blink: led-blink 1s steps(2, jump-none) infinite;
+  --animate-wave: wave 1.2s ease-out infinite;
+  --animate-float-up: float-up 1.8s ease-out forwards;
+  --animate-shake: shake 0.5s ease-in-out;
+  --animate-blink: blink 5.5s infinite;
+  --animate-fade-in: fade-in 0.25s ease-out;
+
+  @keyframes breathe {
+    0%, 100% { transform: translateY(0) scale(1); }
+    50% { transform: translateY(-2px) scale(1.012); }
+  }
+  @keyframes wiggle {
+    0%, 100% { transform: rotate(0deg); }
+    20% { transform: rotate(-2.5deg); }
+    40% { transform: rotate(2.5deg); }
+    60% { transform: rotate(-1.5deg); }
+    80% { transform: rotate(1deg); }
+  }
+  @keyframes led-pulse {
+    0%, 100% { opacity: 1; filter: drop-shadow(0 0 2px currentColor); }
+    50% { opacity: 0.45; filter: drop-shadow(0 0 10px currentColor); }
+  }
+  @keyframes led-blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.15; }
+  }
+  @keyframes wave {
+    0% { opacity: 0.9; transform: scale(0.85); }
+    100% { opacity: 0; transform: scale(1.35); }
+  }
+  @keyframes float-up {
+    0% { opacity: 0; transform: translateY(8px) scale(0.6); }
+    20% { opacity: 1; }
+    100% { opacity: 0; transform: translateY(-60px) scale(1.1); }
+  }
+  @keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    20%, 60% { transform: translateX(-6px); }
+    40%, 80% { transform: translateX(6px); }
+  }
+  @keyframes blink {
+    0%, 92%, 100% { transform: scaleY(1); }
+    95% { transform: scaleY(0.1); }
+  }
+  @keyframes fade-in {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+}
+
+:root {
+  color-scheme: light;
+}
+
+html,
+body {
+  background: var(--color-cream-50);
+  color: var(--color-cocoa-900);
+}
+
+body {
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+:focus-visible {
+  outline: 3px solid var(--color-honey-500);
+  outline-offset: 2px;
+}
+
+/* The paw: no text selection, no long-press menu, no scroll-steal while holding. */
+.no-touch-select {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
