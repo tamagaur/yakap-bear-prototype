@@ -423,6 +423,39 @@ async fn exports_are_audited_and_away_days_are_excluded() {
 }
 
 #[tokio::test]
+async fn clinic_overview_is_role_specific_and_consent_scoped() {
+    guard!();
+    let Some((app, _)) = setup().await else { return };
+    let mut anon = Client::new(&app);
+    assert_eq!(anon.get("/api/clinic/overview").await.status, StatusCode::UNAUTHORIZED);
+
+    let mut doctor = Client::new(&app);
+    doctor.login("doctor@yakap.demo", "clinic").await;
+    let o = doctor.get("/api/clinic/overview").await.json();
+    assert_eq!(o["role"], "CLINICIAN");
+    assert!(o["admin"].is_null());
+    let c = &o["clinician"];
+    assert_eq!(c["patients"], 4, "Rosa, Miguel, Teresa, Carmela — not Jun (revoked)");
+    assert_eq!(c["awayNow"], 1, "Teresa is in hospital");
+    assert!(c["week"]["counted"].as_i64().unwrap() > 0);
+    let attention: Vec<&str> = c["needsAttention"].as_array().unwrap().iter().map(|a| a["nickname"].as_str().unwrap()).collect();
+    assert!(!attention.contains(&"Kuya Jun") && !attention.contains(&"Tita Tess"), "{attention:?}");
+    for m in c["recentMissed"].as_array().unwrap() {
+        assert_ne!(m["patientId"], "pat_jun", "no data from unconsented patients");
+    }
+    assert!(!doctor.get("/api/clinic/overview").await.text().contains("Villanueva"));
+
+    let mut admin = Client::new(&app);
+    admin.login("admin@yakap.demo", "clinic").await;
+    let o = admin.get("/api/clinic/overview").await.json();
+    assert_eq!(o["role"], "CLINIC_ADMIN");
+    assert!(o["clinician"].is_null(), "admins get no patient dose data");
+    assert_eq!(o["admin"]["clinicians"], 2);
+    assert_eq!(o["admin"]["activeConsents"], 5);
+    assert!(o["admin"]["recentActivity"].as_array().unwrap().len() <= 6);
+}
+
+#[tokio::test]
 async fn low_battery_alerts_once_and_rearms_after_charging() {
     guard!();
     let Some((app, pool)) = setup().await else { return };

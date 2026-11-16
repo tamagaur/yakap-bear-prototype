@@ -12,7 +12,7 @@ simulated clock.
 |---|---|---|
 | Demo launcher | `/` | ✅ Built — open views, demo clock, one-click reset |
 | Bear simulator (patient) | `/bear` | ✅ Built |
-| Clinic dashboard (clinicians, clinic admin) | `/clinic` | ✅ Built |
+| Clinic dashboard (clinicians, clinic admin) | `/clinic` | ✅ Built — login → dashboard overview (home) → Patients · Audit log (admin) · Clinic plan |
 | Family app (caregivers, mobile) | `/family` | ⏸ **On hold** — the API is complete, screens not built yet |
 
 ## Architecture
@@ -99,7 +99,7 @@ src/app/page.tsx         launcher (S9 M6 Jertz)
 src/app/bear/            bear simulator page (S1–S8 M6 Jertz)
 src/components/bear/     bear figure, paw button, chips, dose card, demo panel (M6)
 src/hooks/use-bear-device.ts, use-hold-gesture.ts   bear logic (M6)
-src/app/clinic/          login (D1 M3 Kiarra), patients (D2 M3), detail (D8 M4), audit (D5 M3), plan (D6 M3)
+src/app/clinic/          login (D1 M3 Kiarra), dashboard home (D7/D9 M4), patients (D2 M3), detail (D8 M4), audit (D5 M3), plan (D6 M3)
 src/components/clinic/   shell (D7 M4), dose log + export (D3/D4 M3), adherence cards, daily chart, heatmap (D9/D10 M4)
 src/components/ui/       shared design system (buttons, cards, pills, notices, forms, dialog)
 src/lib/contracts/       shared API contracts (M5)

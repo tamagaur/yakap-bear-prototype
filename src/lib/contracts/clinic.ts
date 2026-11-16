@@ -97,6 +97,71 @@ export const PatternSchema = z.object({
 });
 export type PatternDTO = z.infer<typeof PatternSchema>;
 
+const WeekCountsSchema = z.object({
+  total: z.number(),
+  taken: z.number(),
+  late: z.number(),
+  missed: z.number(),
+  away: z.number(),
+  counted: z.number(),
+  onTimePct: z.number().nullable(),
+  adherencePct: z.number().nullable(),
+});
+
+/** GET /api/clinic/overview — the clinic dashboard home page. */
+export const ClinicOverviewSchema = z.object({
+  role: RoleSchema,
+  clinicName: z.string().nullable(),
+  now: z.string(),
+  clinician: z
+    .object({
+      patients: z.number(),
+      withData: z.number(),
+      awayNow: z.number(),
+      week: WeekCountsSchema,
+      today: z.object({
+        taken: z.number(),
+        late: z.number(),
+        missed: z.number(),
+        away: z.number(),
+        upcoming: z.number(),
+      }),
+      needsAttention: z.array(
+        z.object({
+          id: z.string(),
+          fullName: z.string(),
+          nickname: z.string(),
+          missed7: z.number(),
+          onTimePct7: z.number().nullable(),
+          reasons: z.array(z.string()),
+        }),
+      ),
+      recentMissed: z.array(
+        z.object({
+          patientId: z.string(),
+          fullName: z.string(),
+          nickname: z.string(),
+          scheduledFor: z.string(),
+          label: z.string(),
+        }),
+      ),
+    })
+    .nullable(),
+  admin: z
+    .object({
+      clinicians: z.number(),
+      activeConsents: z.number(),
+      consentingPatients: z.number(),
+      views7: z.number(),
+      exports7: z.number(),
+      consentChanges7: z.number(),
+      corrections7: z.number(),
+      recentActivity: z.array(z.lazy(() => AuditEntrySchema)),
+    })
+    .nullable(),
+});
+export type ClinicOverviewDTO = z.infer<typeof ClinicOverviewSchema>;
+
 export const ExportRequestSchema = z.object({
   format: z.literal("pdf"),
   from: DateKeySchema.optional(),

@@ -3,14 +3,17 @@
 use chrono::{DateTime, NaiveDate, Utc};
 use sqlx::PgPool;
 
+use chrono::Duration;
+
 use crate::{
-    dose_rules::DoseStatus,
+    dose_rules::{DoseStatus, summarize_adherence},
     dose_select,
     dto::{
-        ClinicAwayDto, ClinicConsentDto, ClinicPatientDetailDto, ClinicPatientRowDto, DoseEventDto, LastDoseDto,
-        NameRelationDto,
+        AdminOverviewDto, AttentionDto, AuditEntryDto, ClinicAwayDto, ClinicConsentDto, ClinicPatientDetailDto,
+        ClinicPatientRowDto, ClinicianOverviewDto, DoseEventDto, LastDoseDto, NameRelationDto, RecentMissedDto,
+        TodayCountsDto,
     },
-    models::{ConsentFull, DoseEventFull, FamilyContact, Patient, ScheduleWithVoice, User},
+    models::{AuditRow, ConsentFull, DoseEventFull, FamilyContact, Patient, ScheduleWithVoice, User},
     schedule_select,
     services::{convert, dose_engine, insights},
     time::{self, format_time, iso},
@@ -213,6 +216,187 @@ pub async fn dose_rows(
         .fetch_all(pool)
         .await?;
     convert::dose_dtos(pool, rows).await
+}
+
+/// Clinician home page: totals across patients who consented to THIS clinician only.
+pub async fn clinician_overview(pool: &PgPool, clinician: &User, now: DateTime<Utc>) -> sqlx::Result<ClinicianOverviewDto> {
+    let rows = patient_rows(pool, clinician, None, now).await?; // also brings dose state up to date
+    let ids: Vec<String> = rows.iter().map(|r| r.id.clone()).collect();
+    let today = time::date_of(now);
+    let week_start = time::start_of_day(time::add_days(today, -6));
+
+    let week_counts: Vec<(String, i64)> = sqlx::query_as(
+        "SELECT status, count(*) FROM dose_events
+         WHERE patient_id = ANY($1) AND scheduled_for >= $2 AND scheduled_for <= $3
+           AND status IN ('TAKEN', 'LATE', 'MISSED', 'AWAY')
+         GROUP BY status",
+    )
+    .bind(&ids)
+    .bind(week_start)
+    .bind(now)
+    .fetch_all(pool)
+    .await?;
+    let week = summarize_adherence(week_counts.iter().flat_map(|(s, n)| {
+        std::iter::repeat_n(DoseStatus::parse(s).unwrap_or(DoseStatus::Upcoming), *n as usize)
+    }));
+
+    let today_counts: Vec<(String, i64)> = sqlx::query_as(
+        "SELECT status, count(*) FROM dose_events
+         WHERE patient_id = ANY($1) AND scheduled_for >= $2 AND scheduled_for < $3
+         GROUP BY status",
+    )
+    .bind(&ids)
+    .bind(time::start_of_day(today))
+    .bind(time::start_of_day(time::add_days(today, 1)))
+    .fetch_all(pool)
+    .await?;
+    let mut today_dto = TodayCountsDto::default();
+    for (s, n) in today_counts {
+        match s.as_str() {
+            "TAKEN" => today_dto.taken += n,
+            "LATE" => today_dto.late += n,
+            "MISSED" => today_dto.missed += n,
+            "AWAY" => today_dto.away += n,
+            _ => today_dto.upcoming += n,
+        }
+    }
+
+    let mut needs_attention: Vec<AttentionDto> = rows
+        .iter()
+        .filter(|r| r.has_data && !r.away_now)
+        .filter_map(|r| {
+            let mut reasons = Vec::new();
+            if r.missed7 >= 2 {
+                reasons.push(format!("{} missed doses in the last 7 days", r.missed7));
+            }
+            if let Some(p) = r.on_time_pct7.filter(|p| *p < 70) {
+                reasons.push(format!("only {p}% on time this week"));
+            }
+            (!reasons.is_empty()).then(|| AttentionDto {
+                id: r.id.clone(),
+                full_name: r.full_name.clone(),
+                nickname: r.nickname.clone(),
+                missed7: r.missed7,
+                on_time_pct7: r.on_time_pct7,
+                reasons,
+            })
+        })
+        .collect();
+    needs_attention.sort_by(|a, b| b.missed7.cmp(&a.missed7).then(a.on_time_pct7.cmp(&b.on_time_pct7)));
+
+    let recent: Vec<(String, String, String, DateTime<Utc>, String)> = sqlx::query_as(
+        "SELECT p.id, p.full_name, p.nickname, e.scheduled_for, s.label
+         FROM dose_events e
+         JOIN patients p ON p.id = e.patient_id
+         JOIN dose_schedules s ON s.id = e.schedule_id
+         WHERE e.patient_id = ANY($1) AND e.status = 'MISSED' AND e.scheduled_for >= $2
+         ORDER BY e.scheduled_for DESC LIMIT 6",
+    )
+    .bind(&ids)
+    .bind(week_start)
+    .fetch_all(pool)
+    .await?;
+
+    Ok(ClinicianOverviewDto {
+        patients: rows.len() as i64,
+        with_data: rows.iter().filter(|r| r.has_data).count() as i64,
+        away_now: rows.iter().filter(|r| r.away_now).count() as i64,
+        week,
+        today: today_dto,
+        needs_attention,
+        recent_missed: recent
+            .into_iter()
+            .map(|(patient_id, full_name, nickname, at, label)| RecentMissedDto {
+                patient_id,
+                full_name,
+                nickname,
+                scheduled_for: iso(at),
+                label,
+            })
+            .collect(),
+    })
+}
+
+/// Audit entries a clinic admin may see: this clinic's views/exports, consent
+/// changes involving its clinicians, and family corrections on patients who
+/// consented to it.
+pub async fn clinic_audit(
+    pool: &PgPool,
+    clinic: &str,
+    action: Option<&str>,
+    limit: i64,
+) -> sqlx::Result<Vec<AuditEntryDto>> {
+    let rows = sqlx::query_as::<_, AuditRow>(
+        "SELECT a.id, a.action, a.actor_name, a.actor_role, p.full_name AS patient_name, a.clinic_name,
+                a.details, a.sim_time, a.created_at
+         FROM audit_log a LEFT JOIN patients p ON p.id = a.patient_id
+         WHERE (a.clinic_name = $1
+                OR (a.action = 'CORRECT_LOG' AND a.patient_id IN (
+                      SELECT c.patient_id FROM consents c JOIN users u ON u.id = c.clinician_id WHERE u.clinic_name = $1)))
+           AND ($2::text IS NULL OR a.action = $2)
+         ORDER BY a.sim_time DESC LIMIT $3",
+    )
+    .bind(clinic)
+    .bind(action)
+    .bind(limit)
+    .fetch_all(pool)
+    .await?;
+    Ok(rows
+        .into_iter()
+        .map(|r| AuditEntryDto {
+            id: r.id,
+            action: r.action,
+            actor_name: r.actor_name,
+            actor_role: r.actor_role,
+            patient_name: r.patient_name,
+            clinic_name: r.clinic_name,
+            details: r.details,
+            sim_time: iso(r.sim_time),
+            created_at: iso(r.created_at),
+        })
+        .collect())
+}
+
+/// Clinic-admin home page: clinic-wide counts — no patient dose data.
+pub async fn admin_overview(pool: &PgPool, admin: &User, now: DateTime<Utc>) -> sqlx::Result<AdminOverviewDto> {
+    let clinic = admin.clinic_name.clone().unwrap_or_default();
+    let clinicians: i64 =
+        sqlx::query_scalar("SELECT count(*) FROM users WHERE role = 'CLINICIAN' AND clinic_name = $1")
+            .bind(&clinic)
+            .fetch_one(pool)
+            .await?;
+    let (active_consents, consenting_patients): (i64, i64) = sqlx::query_as(
+        "SELECT count(*), count(DISTINCT c.patient_id) FROM consents c
+         JOIN users u ON u.id = c.clinician_id
+         WHERE u.clinic_name = $1 AND c.revoked_at IS NULL",
+    )
+    .bind(&clinic)
+    .fetch_one(pool)
+    .await?;
+    let activity: Vec<(String, i64)> = sqlx::query_as(
+        "SELECT a.action, count(*) FROM audit_log a
+         WHERE (a.clinic_name = $1
+                OR (a.action = 'CORRECT_LOG' AND a.patient_id IN (
+                      SELECT c.patient_id FROM consents c JOIN users u ON u.id = c.clinician_id WHERE u.clinic_name = $1)))
+           AND a.sim_time >= $2 AND a.sim_time <= $3
+         GROUP BY a.action",
+    )
+    .bind(&clinic)
+    .bind(now - Duration::days(7))
+    .bind(now)
+    .fetch_all(pool)
+    .await?;
+    let count = |names: &[&str]| activity.iter().filter(|(a, _)| names.contains(&a.as_str())).map(|(_, n)| n).sum();
+    Ok(AdminOverviewDto {
+        clinicians,
+        active_consents,
+        consenting_patients,
+        views7: count(&["VIEW_PATIENT"]),
+        exports7: count(&["EXPORT_CSV", "EXPORT_PDF"]),
+        consent_changes7: count(&["CONSENT_GRANT", "CONSENT_REVOKE"]),
+        corrections7: count(&["CORRECT_LOG"]),
+        recent_activity: clinic_audit(pool, &clinic, None, 6).await?,
+    })
 }
 
 pub fn logged_by_label(l: Option<&str>) -> &'static str {

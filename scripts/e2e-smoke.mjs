@@ -106,8 +106,15 @@ check("12–13. Family sees the alert and 2 simulated SMS (Ana, Ben)", sms.lengt
 const missedAlert = alerts.alerts[0];
 
 // 14–18 clinic + consent
+r = await anon.get("/clinic");
+check("    /clinic without a session → clinic login", [307, 308].includes(r.status) && (r.headers.get("location") ?? "").endsWith("/clinic/login"));
 r = await doctor.login("doctor@yakap.demo", "clinic");
 check("14. Clinician signs in to the clinic dashboard", r.status === 200);
+r = await doctor.get("/clinic/login");
+check("    Signed-in clinician opening /clinic/login goes to the dashboard", [307, 308].includes(r.status) && new URL(r.headers.get("location"), BASE).pathname === "/clinic");
+check("    Dashboard page (/clinic) renders for the signed-in clinician", (await doctor.get("/clinic")).status === 200);
+const ov = (await doctor.get("/api/clinic/overview")).data;
+check("    Dashboard overview: consented patients only, no admin data", ov.role === "CLINICIAN" && ov.clinician?.patients === 4 && ov.admin === null, `on time 7d ${ov.clinician?.week.onTimePct}%`);
 const list = (await doctor.get("/api/clinic/patients")).data.patients.map((p) => p.id);
 check("15. Consented patients are listed", list.includes("pat_rosa") && list.includes("pat_miguel"), list.join(", "));
 check("    Detail page data loads", (await doctor.get("/api/clinic/patients/pat_rosa")).status === 200);
@@ -135,6 +142,8 @@ check("    The missed-dose alert is resolved by the correction", !!resolved?.res
 r = await doctor.get("/api/clinic/patients/pat_rosa/export.csv");
 check("20. Clinician exports CSV", r.status === 200 && String(r.data).includes("Patient,Date,Dose"));
 await admin.login("admin@yakap.demo", "clinic");
+const aov = (await admin.get("/api/clinic/overview")).data;
+check("    Admin dashboard: clinic-wide counts, no patient dose data", aov.role === "CLINIC_ADMIN" && aov.clinician === null && aov.admin?.exports7 >= 1, `exports 7d: ${aov.admin?.exports7}`);
 const audit = (await admin.get("/api/clinic/audit")).data.entries;
 check("    Admin audit shows the export", audit.some((e) => e.action === "EXPORT_CSV" && e.patientName === "Rosa Santos" && e.details?.from));
 check("    Admin audit shows the correction", audit.some((e) => e.action === "CORRECT_LOG" && String(e.details?.reason).includes("market")));

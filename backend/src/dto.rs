@@ -446,6 +446,76 @@ pub struct AuditEntryDto {
     pub created_at: String,
 }
 
+/// Clinic dashboard overview (home page) — exactly one of `clinician` / `admin` is set.
+#[derive(Serialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct ClinicOverviewDto {
+    pub role: String,
+    pub clinic_name: Option<String>,
+    pub now: String,
+    pub clinician: Option<ClinicianOverviewDto>,
+    pub admin: Option<AdminOverviewDto>,
+}
+
+#[derive(Serialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct ClinicianOverviewDto {
+    /// Patients who granted this clinician active written consent.
+    pub patients: i64,
+    pub with_data: i64,
+    pub away_now: i64,
+    /// Last 7 Manila days across all consented patients (away excluded from %).
+    pub week: AdherenceCounts,
+    pub today: TodayCountsDto,
+    pub needs_attention: Vec<AttentionDto>,
+    pub recent_missed: Vec<RecentMissedDto>,
+}
+
+#[derive(Serialize, Clone, Debug, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct TodayCountsDto {
+    pub taken: i64,
+    pub late: i64,
+    pub missed: i64,
+    pub away: i64,
+    /// Still open (upcoming or reminded).
+    pub upcoming: i64,
+}
+
+#[derive(Serialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct AttentionDto {
+    pub id: String,
+    pub full_name: String,
+    pub nickname: String,
+    pub missed7: i64,
+    pub on_time_pct7: Option<i64>,
+    pub reasons: Vec<String>,
+}
+
+#[derive(Serialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct RecentMissedDto {
+    pub patient_id: String,
+    pub full_name: String,
+    pub nickname: String,
+    pub scheduled_for: String,
+    pub label: String,
+}
+
+#[derive(Serialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct AdminOverviewDto {
+    pub clinicians: i64,
+    pub active_consents: i64,
+    pub consenting_patients: i64,
+    pub views7: i64,
+    pub exports7: i64,
+    pub consent_changes7: i64,
+    pub corrections7: i64,
+    pub recent_activity: Vec<AuditEntryDto>,
+}
+
 #[derive(Serialize, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct ClockDto {

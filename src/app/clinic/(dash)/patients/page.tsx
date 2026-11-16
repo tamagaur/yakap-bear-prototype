@@ -3,7 +3,6 @@
 import clsx from "clsx";
 import { ChevronRight, Search, ShieldCheck } from "lucide-react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 import useSWR from "swr";
 import { PageHeader } from "@/components/clinic/clinic-shell";
@@ -41,7 +40,6 @@ function Bar({ value }: { value: number | null }) {
 }
 
 function PatientList() {
-  const params = useSearchParams();
   const { user } = useClinicUser();
   const { now } = useSimClock();
   const [q, setQ] = useState("");
@@ -89,11 +87,6 @@ function PatientList() {
           </label>
         }
       />
-      {params.get("denied") === "audit" && (
-        <Notice tone="warning" className="mb-4">
-          The audit log is only available to clinic administrators.
-        </Notice>
-      )}
       {error && (
         <Notice tone="error" title="Couldn't load patients" className="mb-4">
           {errorMessage(error)}

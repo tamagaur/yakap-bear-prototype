@@ -56,6 +56,10 @@ Legend: ✅ verified · 🖥 verified in a desktop/mobile-emulated browser · �
 - 🖥 Page guard redirects signed-out visitors to /clinic/login
 
 ### Clinic dashboard (D2–D12)
+- 🖥 `/clinic` signed out → login; sign-in → dashboard overview at `/clinic` (no intermediate page); refresh keeps it; `/clinic/login` while signed in → dashboard
+- 🖥 Persistent sidebar with icons: Dashboard, Patients, Audit log (admins only), Clinic plan; active item highlighted; drawer on mobile
+- ✅ `GET /api/clinic/overview` is role-specific: clinicians see only consented patients (never Jun's data); admins get counts and audit activity, no patient dose data
+- ✅ Clinician opening `/clinic/audit` → dashboard with "only for clinic administrators" notice
 - 🖥 Patient list with search, adherence, last dose, away badge, "No data yet"
 - 🖥 Detail: adherence cards (7/30 days, away excluded), doses-per-day chart with legend/tooltip/table view, schedule, family caregivers, recent doses
 - 🖥 Dose log: date range, status filters, sortable date/status, correction details

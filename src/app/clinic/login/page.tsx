@@ -26,7 +26,7 @@ function LoginForm() {
     try {
       await apiFetch("/api/auth/login", { json: { email, password, area: "clinic" } });
       const next = params.get("next");
-      router.replace(next && next.startsWith("/clinic") ? next : "/clinic/patients");
+      router.replace(next && next.startsWith("/clinic/") && next !== "/clinic/login" ? next : "/clinic");
     } catch (err) {
       setError(errorMessage(err));
       setBusy(false);

@@ -55,7 +55,7 @@ origin. The Next page guard (`src/proxy.ts`) verifies the same JWT for redirects
 | B12 clock | `services/clock.rs`, `services/demo.rs` |
 | B13 deploy + reset | `seed/reset.rs`, `backend/Dockerfile`, README → Deployment |
 | S1–S9 | `src/app/bear`, `src/components/bear`, `src/hooks/use-bear-device.ts`, `src/app/page.tsx` |
-| D1–D12 | `src/app/clinic`, `src/components/clinic` |
+| D1–D12 | `src/app/clinic` (home = dashboard overview at `/clinic`), `src/components/clinic` |
 | M1–M13 | ⏸ UI on hold; endpoints in `backend/src/routes/{patients,schedules,voice,doses,alerts,consents,away}.rs` |
 | Q1 / Q2 | `docs/DEMO_SCRIPT.md`, `docs/QA_CHECKLIST.md` |
 
@@ -65,7 +65,8 @@ origin. The Next page guard (`src/proxy.ts`) verifies the same JWT for redirects
 |---|---|---|
 | Nov 16 | Next.js 16 with **Cache Components off** | Every screen depends on session or demo clock; static shells add constraints without benefit. |
 | Nov 16 | Page guard in `src/proxy.ts` | Next 16 renamed `middleware` to `proxy`. |
-| Nov 16 | First backend drafted in TypeScript (Prisma 7), then **replaced by Rust** | Team requirement (Rust backend) arrived mid-build. The TS draft stays in git history (first commit). |
+| Nov 16 | First backend drafted in TypeScript (Prisma 7), then **replaced by Rust** | Team requirement (Rust backend) arrived mid-build. Git history was later squashed into one "Base prototype" commit, so the TS draft is no longer in the repository. |
+| Nov 16 | **Dashboard is the clinic home page** (`/clinic`) | Login → dashboard overview directly; persistent sidebar (Dashboard, Patients, Audit log for admins, Clinic plan). Role-specific overview from `GET /api/clinic/overview`. |
 | Nov 16 | Family app UI paused | Team decision; backend endpoints for it are complete so screens can be added without API work. |
 | Nov 16 | Separate session cookies per area | One browser can demo family and clinic side by side. |
 | Nov 16 | Timing defaults: ±30 min on time, +60 min late | Resolves the conflict between "late" and B6's "inside the window" rule — see `DOSE_RULES.md`. |

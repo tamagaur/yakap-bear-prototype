@@ -70,7 +70,7 @@ export default function LauncherPage() {
                 clinic audit log.
               </p>
               <div className="mt-5 flex flex-wrap items-start gap-2">
-                <QuickLogin email="doctor@yakap.demo" area="clinic" next="/clinic/patients" label="Sign in as Dr. Reyes" />
+                <QuickLogin email="doctor@yakap.demo" area="clinic" next="/clinic" label="Sign in as Dr. Reyes" />
                 <ButtonLink href="/clinic/login" variant="secondary">
                   Sign-in page
                 </ButtonLink>

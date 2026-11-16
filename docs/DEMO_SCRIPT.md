@@ -10,7 +10,7 @@ Audience: classmates and panel. Length: about 8 minutes. Two laptops (or two bro
 
 1. `npm run dev:all` (or open the deployed URL). Open `/` → **Reset demo** → clock shows **7:45 PM**.
 2. Window A: `/bear` → **Turn on bear** (unlocks sound). Volume up.
-3. Window B: `/` → **Sign in as Dr. Reyes** → patients list.
+3. Window B: `/` → **Sign in as Dr. Reyes** → clinic dashboard (home).
 
 ## 1 · The problem and the bear (1 min) — Window A
 
@@ -47,7 +47,9 @@ Audience: classmates and panel. Length: about 8 minutes. Two laptops (or two bro
 
 ## 6 · The clinician's view (2 min) — Window B
 
-- Patients: only families who signed **written consent** appear (Jun's family revoked consent → not listed).
+- **Dashboard** (home): this week across all consented patients — on-time %, missed doses, *Needs attention*
+  (Miguel: 5 missed this week), today's doses and recent missed doses.
+- **Patients** (sidebar): only families who signed **written consent** appear (Jun's family revoked consent → not listed).
 - Open **Rosa Santos** → adherence cards (away days excluded), doses per day, recent doses.
 - **Patterns** tab → *Most often missed: Sunday 8:00 PM* — "a conversation starter for the check-up".
 - **Dose log** → filter Missed; open a **Corrected** badge to show the family's reason.
@@ -56,8 +58,8 @@ Audience: classmates and panel. Length: about 8 minutes. Two laptops (or two bro
 
 ## 7 · Privacy and accountability (30 s)
 
-- Sign out → sign in as `admin@yakap.demo` → **Audit log**: views, exports, consent given/revoked, corrections —
-  append-only (enforced by the database).
+- Sign out → sign in as `admin@yakap.demo` → admin dashboard (clinic-wide counts, no patient dose data) →
+  **Audit log**: views, exports, consent given/revoked, corrections — append-only (enforced by the database).
 
 ## Who clicks what
 

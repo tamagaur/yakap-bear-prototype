@@ -94,6 +94,7 @@ guessed IDs. Views and exports are audited.
 
 | Method & path | Query / body | Response |
 |---|---|---|
+| `GET /api/clinic/overview` | — | Dashboard home: `{ role, clinicName, now, clinician, admin }` — clinicians get `clinician = { patients, withData, awayNow, week (7-day counts + onTimePct/adherencePct), today { taken, late, missed, away, upcoming }, needsAttention[], recentMissed[] }` across **their consented patients only**; clinic admins get `admin = { clinicians, activeConsents, consentingPatients, views7, exports7, consentChanges7, corrections7, recentActivity[] }` (no patient dose data) |
 | `GET /api/clinic/patients` | `?q=` search | `{ patients: ClinicPatientRow[], role }` (admins get `[]`) |
 | `GET /api/clinic/patients/:id` | — | `ClinicPatientDetail` (audited: VIEW_PATIENT, de-duplicated per 5 min) |
 | `GET /api/clinic/patients/:id/doses` | `?from&to&status&sort=scheduledFor\|status&order=asc\|desc` | `{ from, to, doses }` |

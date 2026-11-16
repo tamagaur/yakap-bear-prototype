@@ -1,9 +1,9 @@
 "use client";
 
 import clsx from "clsx";
-import { Download, Eye, FileCheck2, FileX2, PencilLine } from "lucide-react";
 import { useState } from "react";
 import useSWR from "swr";
+import { AUDIT_ACTIONS as ACTIONS, describeAudit as describe, roleLabel } from "@/components/clinic/audit-meta";
 import { PageHeader } from "@/components/clinic/clinic-shell";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -14,32 +14,6 @@ import { errorMessage, fetcher } from "@/lib/api-client";
 import type { AuditEntryDTO } from "@/lib/contracts/clinic";
 import type { AuditActionT } from "@/lib/contracts/common";
 import { formatDateTime } from "@/lib/time";
-
-const ACTIONS: Record<AuditActionT, { label: string; icon: React.ReactNode; tone: string }> = {
-  VIEW_PATIENT: { label: "Viewed record", icon: <Eye className="size-3.5" />, tone: "bg-upcoming-soft text-upcoming-ink" },
-  EXPORT_CSV: { label: "Exported CSV", icon: <Download className="size-3.5" />, tone: "bg-honey-200 text-cocoa-800" },
-  EXPORT_PDF: { label: "Exported PDF", icon: <Download className="size-3.5" />, tone: "bg-honey-200 text-cocoa-800" },
-  CORRECT_LOG: { label: "Log corrected", icon: <PencilLine className="size-3.5" />, tone: "bg-late-soft text-late-ink" },
-  CONSENT_GRANT: { label: "Consent given", icon: <FileCheck2 className="size-3.5" />, tone: "bg-taken-soft text-taken-ink" },
-  CONSENT_REVOKE: { label: "Consent revoked", icon: <FileX2 className="size-3.5" />, tone: "bg-missed-soft text-missed-ink" },
-};
-
-function describe(e: AuditEntryDTO): string {
-  const d = (e.details ?? {}) as Record<string, string | number>;
-  switch (e.action) {
-    case "VIEW_PATIENT":
-      return `Opened the ${d.section === "dose-log" ? "dose log" : "patient overview"}`;
-    case "EXPORT_CSV":
-    case "EXPORT_PDF":
-      return `${d.rows ?? "?"} dose rows${d.from ? `, ${d.from} → ${d.to}` : ""}`;
-    case "CORRECT_LOG":
-      return `${d.dose ?? "Dose"}: ${d.from} → ${d.to} — “${d.reason ?? ""}”`;
-    case "CONSENT_GRANT":
-      return `For ${d.clinician}, signed by ${d.signedName} (${d.version})`;
-    case "CONSENT_REVOKE":
-      return `Access removed for ${d.clinician}`;
-  }
-}
 
 /** Clinic-admin audit view (task D5): who viewed/exported what and when. */
 export default function AuditPage() {
@@ -91,9 +65,7 @@ export default function AuditPage() {
                     <td className="px-5 py-3 whitespace-nowrap font-semibold text-cocoa-700 tabular">{formatDateTime(e.simTime)}</td>
                     <td className="px-3 py-3">
                       <span className="font-bold whitespace-nowrap text-cocoa-900">{e.actorName}</span>
-                      <span className="block text-xs font-semibold text-cocoa-500">
-                        {e.actorRole === "FAMILY" ? "Family" : e.actorRole === "CLINICIAN" ? "Clinician" : e.actorRole === "CLINIC_ADMIN" ? "Clinic admin" : "System"}
-                      </span>
+                      <span className="block text-xs font-semibold text-cocoa-500">{roleLabel(e.actorRole)}</span>
                     </td>
                     <td className="px-3 py-3">
                       <span className={clsx("inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-bold whitespace-nowrap", ACTIONS[e.action].tone)}>

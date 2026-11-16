@@ -14,8 +14,9 @@ export async function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
   const session = await verifySession(req.cookies.get(SESSION_COOKIES.clinic)?.value, "clinic");
 
+  // Signed-in users never see the login page again — the dashboard is home.
   if (pathname === "/clinic/login") {
-    return session ? NextResponse.redirect(new URL("/clinic/patients", req.url)) : NextResponse.next();
+    return session ? NextResponse.redirect(new URL("/clinic", req.url)) : NextResponse.next();
   }
   if (!session) {
     const url = new URL("/clinic/login", req.url);
@@ -23,7 +24,7 @@ export async function proxy(req: NextRequest) {
     return NextResponse.redirect(url);
   }
   if (pathname.startsWith("/clinic/audit") && session.role !== "CLINIC_ADMIN") {
-    return NextResponse.redirect(new URL("/clinic/patients?denied=audit", req.url));
+    return NextResponse.redirect(new URL("/clinic?denied=audit", req.url));
   }
   return NextResponse.next();
 }

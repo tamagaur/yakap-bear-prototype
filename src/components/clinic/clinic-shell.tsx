@@ -1,7 +1,7 @@
 "use client";
 
 import clsx from "clsx";
-import { BadgePercent, LogOut, Menu, ScrollText, Users, X } from "lucide-react";
+import { BadgePercent, LayoutDashboard, LogOut, Menu, ScrollText, Users, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { type ReactNode, useEffect, useState } from "react";
@@ -12,9 +12,10 @@ import { useClinicUser } from "@/hooks/use-clinic-user";
 import { apiFetch } from "@/lib/api-client";
 
 const NAV = [
-  { href: "/clinic/patients", label: "Patients", icon: Users, admin: false },
-  { href: "/clinic/audit", label: "Audit log", icon: ScrollText, admin: true },
-  { href: "/clinic/plan", label: "Clinic plan", icon: BadgePercent, admin: false },
+  { href: "/clinic", label: "Dashboard", icon: LayoutDashboard, admin: false, exact: true },
+  { href: "/clinic/patients", label: "Patients", icon: Users, admin: false, exact: false },
+  { href: "/clinic/audit", label: "Audit log", icon: ScrollText, admin: true, exact: false },
+  { href: "/clinic/plan", label: "Clinic plan", icon: BadgePercent, admin: false, exact: false },
 ];
 
 /** Clinic dashboard shell (task D7): sidebar, header, role-aware navigation. */
@@ -24,8 +25,13 @@ export function ClinicShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
 
+  // The session cookie no longer maps to a user (e.g. expired or removed):
+  // clear it first so the login page doesn't bounce straight back here.
   useEffect(() => {
-    if (loaded && !user) router.replace(`/clinic/login?next=${encodeURIComponent(pathname)}`);
+    if (!loaded || user) return;
+    apiFetch("/api/auth/logout?area=clinic", { method: "POST" })
+      .catch(() => undefined)
+      .finally(() => router.replace(pathname === "/clinic" ? "/clinic/login" : `/clinic/login?next=${encodeURIComponent(pathname)}`));
   }, [loaded, user, router, pathname]);
 
   const logout = async () => {
@@ -39,10 +45,10 @@ export function ClinicShell({ children }: { children: ReactNode }) {
   const sidebar = (
     <nav className="flex h-full flex-col gap-1 p-4" aria-label="Clinic">
       <div className="mb-6 px-2">
-        <Logo href="/clinic/patients" subtitle="Clinic dashboard" tone="light" />
+        <Logo href="/clinic" subtitle="Clinic dashboard" tone="light" />
       </div>
       {nav.map((n) => {
-        const active = pathname.startsWith(n.href);
+        const active = n.exact ? pathname === n.href : pathname === n.href || pathname.startsWith(`${n.href}/`);
         return (
           <Link
             key={n.href}
@@ -94,7 +100,7 @@ export function ClinicShell({ children }: { children: ReactNode }) {
         )}
         <div className="min-w-0 flex-1">
           <div className="flex items-center justify-between border-b border-cocoa-100 bg-white/70 px-4 py-3 backdrop-blur lg:hidden">
-            <Logo href="/clinic/patients" subtitle="Clinic" />
+            <Logo href="/clinic" subtitle="Clinic" />
             <button
               type="button"
               onClick={() => setMenuOpen((v) => !v)}

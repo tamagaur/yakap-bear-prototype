@@ -17,10 +17,10 @@ use crate::{
     AppState,
     auth::{ClinicUser, require_clinician_patient},
     dose_rules::DoseStatus,
-    dto::{AdherenceSummaryDto, AuditEntryDto, ClinicPatientDetailDto, PatternDto},
+    dto::{AdherenceSummaryDto, ClinicOverviewDto, ClinicPatientDetailDto, PatternDto},
     error::{ApiError, ApiResult},
     extract::{ApiJson, ApiQuery},
-    models::{AuditRow, Role},
+    models::Role,
     routes::doses::parse_statuses,
     services::{
         audit::{self, AuditEntry},
@@ -32,6 +32,7 @@ use crate::{
 
 pub fn routes() -> Router<AppState> {
     Router::new()
+        .route("/clinic/overview", get(overview))
         .route("/clinic/patients", get(patients))
         .route("/clinic/patients/{patient_id}", get(detail))
         .route("/clinic/patients/{patient_id}/doses", get(doses))
@@ -40,6 +41,20 @@ pub fn routes() -> Router<AppState> {
         .route("/clinic/patients/{patient_id}/export.csv", get(export_csv))
         .route("/clinic/patients/{patient_id}/export-log", post(export_pdf))
         .route("/clinic/audit", get(audit_log))
+}
+
+/// Dashboard home page. Clinicians get totals across their consented patients;
+/// clinic admins get clinic-wide consent/audit counts (no patient dose data).
+async fn overview(State(st): State<AppState>, ClinicUser(user): ClinicUser) -> ApiResult<Json<ClinicOverviewDto>> {
+    let now = clock::now(&st.pool).await?;
+    let is_admin = user.role() == Some(Role::ClinicAdmin);
+    Ok(Json(ClinicOverviewDto {
+        role: user.role.clone(),
+        clinic_name: user.clinic_name.clone(),
+        now: time::iso(now),
+        clinician: if is_admin { None } else { Some(clinic::clinician_overview(&st.pool, &user, now).await?) },
+        admin: if is_admin { Some(clinic::admin_overview(&st.pool, &user, now).await?) } else { None },
+    }))
 }
 
 #[derive(Deserialize)]
@@ -280,33 +295,6 @@ async fn audit_log(
         }
     }
     let clinic = user.clinic_name.clone().unwrap_or_default();
-    let rows = sqlx::query_as::<_, AuditRow>(
-        "SELECT a.id, a.action, a.actor_name, a.actor_role, p.full_name AS patient_name, a.clinic_name,
-                a.details, a.sim_time, a.created_at
-         FROM audit_log a LEFT JOIN patients p ON p.id = a.patient_id
-         WHERE (a.clinic_name = $1
-                OR (a.action = 'CORRECT_LOG' AND a.patient_id IN (
-                      SELECT c.patient_id FROM consents c JOIN users u ON u.id = c.clinician_id WHERE u.clinic_name = $1)))
-           AND ($2::text IS NULL OR a.action = $2)
-         ORDER BY a.sim_time DESC LIMIT 300",
-    )
-    .bind(&clinic)
-    .bind(&q.action)
-    .fetch_all(&st.pool)
-    .await?;
-    let entries: Vec<AuditEntryDto> = rows
-        .into_iter()
-        .map(|r| AuditEntryDto {
-            id: r.id,
-            action: r.action,
-            actor_name: r.actor_name,
-            actor_role: r.actor_role,
-            patient_name: r.patient_name,
-            clinic_name: r.clinic_name,
-            details: r.details,
-            sim_time: time::iso(r.sim_time),
-            created_at: time::iso(r.created_at),
-        })
-        .collect();
+    let entries = clinic::clinic_audit(&st.pool, &clinic, q.action.as_deref(), 300).await?;
     Ok(Json(json!({ "entries": entries, "clinicName": clinic })))
 }
