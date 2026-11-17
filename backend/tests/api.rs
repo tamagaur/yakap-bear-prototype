@@ -528,3 +528,131 @@ async fn database_outage_returns_503_not_a_crash() {
     assert_eq!(r.json()["error"]["code"], "DB_UNAVAILABLE");
     assert_eq!(c.get("/api/health").await.status, StatusCode::OK);
 }
+
+#[tokio::test]
+async fn seeded_sunday_evening_pattern_is_the_same_after_every_reset() {
+    guard!();
+    let Some((app, _)) = setup().await else { return };
+    let mut doctor = Client::new(&app);
+    doctor.login("doctor@yakap.demo", "clinic").await;
+    for days in [28, 42] {
+        let p = doctor.get(&format!("/api/clinic/patients/pat_rosa/pattern?days={days}")).await.json();
+        let top = &p["hotspots"][0];
+        assert_eq!(top["weekday"], 0, "{days} days: Sunday should lead, got {top}");
+        assert_eq!(top["timeOfDay"], "20:00");
+        assert!(top["missed"].as_i64().unwrap() >= 3, "{days} days: {top}");
+    }
+}
+
+#[tokio::test]
+async fn clinic_lists_and_dashboard_carry_trend_pattern_and_device_data() {
+    guard!();
+    let Some((app, _)) = setup().await else { return };
+    let mut doctor = Client::new(&app);
+    doctor.login("doctor@yakap.demo", "clinic").await;
+
+    // Sparklines: four weekly on-time values per patient, null where there is no data.
+    let list = doctor.get("/api/clinic/patients").await.json();
+    for row in list["patients"].as_array().unwrap() {
+        let spark = row["spark"].as_array().unwrap();
+        assert_eq!(spark.len(), 4, "{row}");
+        for v in spark {
+            assert!(v.is_null() || (0..=100).contains(&v.as_i64().unwrap()), "{row}");
+        }
+        if row["id"] == "pat_carmela" {
+            assert!(spark.iter().all(Value::is_null), "no data yet → no trend");
+        }
+        if row["id"] == "pat_rosa" {
+            assert!(spark.iter().any(|v| !v.is_null()));
+        }
+    }
+
+    // Patient detail: the paired bear (never its key) and who gets the texts.
+    let res = doctor.get("/api/clinic/patients/pat_rosa").await;
+    assert!(!res.text().contains("deviceKey") && !res.text().contains(BEAR_KEY));
+    let d = res.json();
+    assert_eq!(d["device"]["id"], "BEAR-0001");
+    assert!(d["device"]["batteryPct"].is_number());
+    assert!(d["familyContacts"].as_array().unwrap().iter().any(|c| c["receivesSms"] == true));
+
+    // Dashboard: previous week, six weekly points and the plain-language pattern reason.
+    let o = doctor.get("/api/clinic/overview").await.json();
+    let c = &o["clinician"];
+    assert_eq!(c["weekly"].as_array().unwrap().len(), 6);
+    assert!(c["weekPrev"]["counted"].as_i64().unwrap() > 0);
+    let last = &c["weekly"][5];
+    assert_eq!(last["counted"], c["week"]["counted"], "the last bucket is this week");
+    let rosa = c["needsAttention"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|a| a["id"] == "pat_rosa")
+        .expect("Rosa's Sunday pattern needs a conversation");
+    assert_eq!(rosa["topPattern"]["weekday"], 0);
+    assert_eq!(rosa["topPattern"]["timeOfDay"], "20:00");
+    assert!(rosa["reasons"][0].as_str().unwrap().contains("Sunday 8:00 PM"), "{rosa}");
+}
+
+#[tokio::test]
+async fn printed_checkup_sheets_are_audited() {
+    guard!();
+    let Some((app, _)) = setup().await else { return };
+    let mut doctor = Client::new(&app);
+    doctor.login("doctor@yakap.demo", "clinic").await;
+    let r = doctor.post("/api/clinic/patients/pat_rosa/export-log", json!({ "format": "print" })).await;
+    assert_eq!(r.status, StatusCode::OK);
+    assert!(r.json()["summary"]["counted"].is_number());
+    assert_eq!(
+        doctor.post("/api/clinic/patients/pat_rosa/export-log", json!({ "format": "docx" })).await.status,
+        StatusCode::BAD_REQUEST
+    );
+    // No consent → no sheet, and nothing is logged.
+    assert_eq!(
+        doctor.post("/api/clinic/patients/pat_jun/export-log", json!({ "format": "print" })).await.status,
+        StatusCode::FORBIDDEN
+    );
+
+    let mut admin = Client::new(&app);
+    admin.login("admin@yakap.demo", "clinic").await;
+    let log = admin.get("/api/clinic/audit?action=PRINT_CHECKUP").await.json();
+    let entries = log["entries"].as_array().unwrap();
+    assert_eq!(entries.len(), 1);
+    assert_eq!(entries[0]["patientName"], "Rosa Santos");
+    assert_eq!(entries[0]["details"]["format"], "print");
+}
+
+#[tokio::test]
+async fn launcher_overview_is_demo_only_and_leaks_no_secrets() {
+    guard!();
+    let Some((app, pool)) = setup().await else { return };
+    let mut c = Client::new(&app);
+    let res = c.get("/api/demo/overview").await;
+    assert_eq!(res.status, StatusCode::OK);
+    let text = res.text();
+    assert!(!text.contains("deviceKey") && !text.contains("audioUrl") && !text.contains(BEAR_KEY), "{text}");
+    let o = res.json();
+    assert_eq!(o["patient"]["id"], "pat_rosa");
+    assert_eq!(o["device"]["id"], "BEAR-0001");
+    assert_eq!(o["nextDose"]["label"], "Evening");
+    assert!(o["reminder"]["title"].is_string());
+    assert_eq!(o["people"]["family"]["name"], "Ana Santos");
+    assert_eq!(o["people"]["clinician"]["name"], "Dr. Paolo Reyes");
+    assert_eq!(o["people"]["admin"]["name"], "Carla Dizon");
+    assert_eq!(c.get("/api/demo/overview?deviceId=BEAR-9999").await.status, StatusCode::NOT_FOUND);
+
+    // A missed dose shows up as one more open alert and a fresh simulated text.
+    let before = o["openAlerts"].as_i64().unwrap();
+    c.clock(json!({ "action": "next-dose", "deviceId": "BEAR-0001" })).await;
+    c.clock(json!({ "action": "past-window", "deviceId": "BEAR-0001" })).await;
+    let o = c.get("/api/demo/overview").await.json();
+    assert_eq!(o["openAlerts"].as_i64().unwrap(), before + 1);
+    assert!(o["latestText"]["body"].as_str().unwrap().contains("Lola Rosa"), "{o}");
+    let recipients: Vec<&str> =
+        o["latestText"]["recipients"].as_array().unwrap().iter().map(|r| r.as_str().unwrap()).collect();
+    assert_eq!(recipients, ["Ana Santos", "Ben Santos"], "every opted-in contact got the text");
+
+    // Outside demo mode the endpoint is closed.
+    let url = std::env::var("TEST_DATABASE_URL").unwrap();
+    let locked = build_app(AppState::new(pool.clone(), Config { demo_mode: false, ..test_config(&url) }));
+    assert_eq!(Client::new(&locked).get("/api/demo/overview").await.status, StatusCode::FORBIDDEN);
+}

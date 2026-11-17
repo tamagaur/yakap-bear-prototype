@@ -33,7 +33,7 @@ struct VoiceRef {
 }
 
 /// Latest family recording (real recordings preferred over the sample chime).
-async fn fallback_voice(pool: &PgPool, patient_id: &str) -> sqlx::Result<Option<BearVoiceDto>> {
+pub async fn fallback_voice(pool: &PgPool, patient_id: &str) -> sqlx::Result<Option<BearVoiceDto>> {
     let v = sqlx::query_as::<_, VoiceRef>(
         "SELECT v.id, v.title, v.is_sample, u.name AS recorded_by_name
          FROM voice_messages v LEFT JOIN users u ON u.id = v.recorded_by_id

@@ -351,6 +351,8 @@ pub struct ClinicPatientRowDto {
     pub last_dose: Option<LastDoseDto>,
     pub away_now: bool,
     pub has_data: bool,
+    /// On-time % for the last four 7-day buckets, oldest → newest. None = no counted doses.
+    pub spark: Vec<Option<i64>>,
 }
 
 #[derive(Serialize, Clone, Debug)]
@@ -368,6 +370,8 @@ pub struct ClinicConsentDto {
 pub struct NameRelationDto {
     pub name: String,
     pub relationship: String,
+    /// Whether this caregiver gets the simulated missed-dose texts.
+    pub receives_sms: bool,
 }
 
 #[derive(Serialize, Clone, Debug)]
@@ -388,6 +392,8 @@ pub struct ClinicPatientDetailDto {
     pub birth_year: Option<i32>,
     pub consent: ClinicConsentDto,
     pub family_contacts: Vec<NameRelationDto>,
+    /// The paired bear: id, battery and last seen. Never the device key.
+    pub device: Option<DeviceDto>,
     pub schedules: Vec<ScheduleDto>,
     pub away_periods: Vec<ClinicAwayDto>,
     pub recent: Vec<DoseEventDto>,
@@ -466,6 +472,10 @@ pub struct ClinicianOverviewDto {
     pub away_now: i64,
     /// Last 7 Manila days across all consented patients (away excluded from %).
     pub week: AdherenceCounts,
+    /// The 7 Manila days before `week`, for "vs last week".
+    pub week_prev: AdherenceCounts,
+    /// Six 7-day buckets, oldest → newest, across the same patients.
+    pub weekly: Vec<WeekPointDto>,
     pub today: TodayCountsDto,
     pub needs_attention: Vec<AttentionDto>,
     pub recent_missed: Vec<RecentMissedDto>,
@@ -491,6 +501,86 @@ pub struct AttentionDto {
     pub missed7: i64,
     pub on_time_pct7: Option<i64>,
     pub reasons: Vec<String>,
+    /// Most-missed weekday × dose time over the last 28 days (2+ misses).
+    pub top_pattern: Option<HotspotDto>,
+}
+
+/// One 7-day bucket of the clinic-wide trend.
+#[derive(Serialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct WeekPointDto {
+    pub from: String,
+    pub to: String,
+    pub on_time_pct: Option<i64>,
+    pub adherence_pct: Option<i64>,
+    pub counted: i64,
+}
+
+/// Launcher data (demo mode only): what the live strip, role cards and voice card show.
+#[derive(Serialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct DemoOverviewDto {
+    pub now: String,
+    pub patient: DemoPatientDto,
+    pub device: DeviceDto,
+    pub next_dose: Option<DemoNextDoseDto>,
+    pub open_alerts: i64,
+    pub latest_text: Option<DemoTextDto>,
+    pub reminder: Option<DemoReminderDto>,
+    pub people: DemoPeopleDto,
+}
+
+#[derive(Serialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct DemoPatientDto {
+    pub id: String,
+    pub full_name: String,
+    pub nickname: String,
+}
+
+#[derive(Serialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct DemoNextDoseDto {
+    pub id: String,
+    pub scheduled_for: String,
+    pub label: String,
+    pub pill_note: Option<String>,
+    pub status: String,
+}
+
+#[derive(Serialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct DemoTextDto {
+    pub body: String,
+    pub to_name: String,
+    /// Everyone who received this simulated text (one message per opted-in contact).
+    pub recipients: Vec<String>,
+    pub created_at: String,
+}
+
+#[derive(Serialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct DemoReminderDto {
+    pub title: String,
+    pub recorded_by_name: Option<String>,
+    pub is_sample: bool,
+}
+
+#[derive(Serialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct DemoPersonDto {
+    pub name: String,
+    pub relationship: Option<String>,
+    pub title: Option<String>,
+    pub clinic_name: Option<String>,
+}
+
+#[derive(Serialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct DemoPeopleDto {
+    pub family: Option<DemoPersonDto>,
+    pub clinician: Option<DemoPersonDto>,
+    pub admin: Option<DemoPersonDto>,
 }
 
 #[derive(Serialize, Clone, Debug)]

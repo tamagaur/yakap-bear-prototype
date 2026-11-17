@@ -1,69 +1,159 @@
 @import "tailwindcss";
 
 /*
- * Yakap Bear design tokens — warm cream, cocoa brown and honey, taken from
- * the Business Model Canvas look. Shared by the bear simulator, the clinic
- * dashboard and (later) the family app.
+ * Yakap Bear design tokens: "a warm hug between visits".
+ * Values come from the approved design. Light only; there is no dark design.
+ *
+ * The numbered scales (cream-50…, cocoa-900…, honey-500…) are the earlier tokens,
+ * retuned to the same palette so older screens stay consistent while they move over.
  */
 @theme {
-  --font-sans: var(--font-nunito), ui-rounded, "Segoe UI", system-ui, sans-serif;
+  /* Fonts: Nunito for headings, DM Sans for body and numbers (both via next/font). */
+  --font-sans: var(--font-dm-sans), "DM Sans", ui-sans-serif, system-ui, "Segoe UI", sans-serif;
+  --font-heading: var(--font-nunito), "Nunito", ui-rounded, "Segoe UI", system-ui, sans-serif;
 
-  --color-cream-50: #fffaf3;
-  --color-cream-100: #fdf3e6;
-  --color-cream-200: #f8e6d0;
-  --color-cream-300: #f1d4b2;
+  /* Core colors */
+  --color-cream: #f8f2e8;
+  --color-cream-deep: #efe4d2;
+  --color-paper: #fffdf9;
+  --color-cocoa: #3d2b25;
+  --color-muted: #766861;
+  --color-honey: #e1a72b;
+  --color-honey-dark: #9d6810;
+  --color-peach: #f4c8a8;
+  --color-rose: #edc4c6;
+  --color-lavender: #d8cdea;
+  --color-mint: #cce2d4;
+  --color-butter: #f5e7a9;
+  --color-teal: #2f756e;
+  --color-blue: #3c7296;
+  --color-red: #a5453e;
+  --color-line: #dfd5c8;
 
-  --color-cocoa-950: #2a1a10;
-  --color-cocoa-900: #3b2618;
-  --color-cocoa-800: #4f3322;
-  --color-cocoa-700: #6b4630;
-  --color-cocoa-600: #8a5d3f;
-  --color-cocoa-500: #a87b59;
-  --color-cocoa-400: #c29b7c;
-  --color-cocoa-300: #d9bfa6;
-  --color-cocoa-200: #e9d7c4;
-  --color-cocoa-100: #f4ebe1;
+  /* Structure */
+  --color-sidebar: #263e3b;
+  --color-device-brown: #9d6845;
+  --color-device-brown-light: #c58f68;
+  --color-device-brown-dark: #87583d;
 
-  --color-honey-200: #fbe6b4;
-  --color-honey-300: #f8d589;
-  --color-honey-400: #f3bf55;
-  --color-honey-500: #e8a33a;
-  --color-honey-600: #c9821d;
-  --color-honey-700: #9e6412;
+  /* Earlier scales, retuned to the palette above */
+  --color-cream-50: #fffdf9;
+  --color-cream-100: #f8f2e8;
+  --color-cream-200: #efe4d2;
+  --color-cream-300: #e6d6bf;
+
+  --color-cocoa-950: #2f211a;
+  --color-cocoa-900: #3d2b25;
+  --color-cocoa-800: #4d3930;
+  --color-cocoa-700: #5f4b42;
+  --color-cocoa-600: #766861;
+  --color-cocoa-500: #8b7d75;
+  --color-cocoa-400: #b3a69d;
+  --color-cocoa-300: #cfc4b9;
+  --color-cocoa-200: #dfd5c8;
+  --color-cocoa-100: #f1ebe2;
+
+  --color-honey-200: #f8e6b4;
+  --color-honey-300: #f1cd74;
+  --color-honey-400: #e9b84a;
+  --color-honey-500: #e1a72b;
+  --color-honey-600: #c58c1e;
+  --color-honey-700: #9d6810;
 
   --color-fur: #b07a4f;
-  --color-fur-dark: #8f5f3b;
-  --color-fur-light: #f4dcc0;
+  --color-fur-dark: #87583d;
+  --color-fur-light: #e1b58e;
   --color-paw-pad: #f2c79a;
 
+  /* Dose status: solid = chart fill, soft/ink = pill background/text (design values) */
   --color-taken: #3f8f62;
-  --color-taken-soft: #e3f2e8;
-  --color-taken-ink: #275c3e;
+  --color-taken-soft: #e2f1e8;
+  --color-taken-ink: #236343;
   --color-late: #d0861c;
-  --color-late-soft: #fbefd9;
-  --color-late-ink: #8a560c;
+  --color-late-soft: #fff0cd;
+  --color-late-ink: #825500;
   --color-missed: #c2453d;
-  --color-missed-soft: #f9e1de;
-  --color-missed-ink: #8e2a24;
+  --color-missed-soft: #f9dfdc;
+  --color-missed-ink: #8c342d;
   --color-away: #8a817b;
-  --color-away-soft: #ece8e4;
-  --color-away-ink: #57504b;
+  --color-away-soft: #ece9e5;
+  --color-away-ink: #5d5752;
   --color-upcoming: #3f7fbf;
-  --color-upcoming-soft: #e1edf8;
-  --color-upcoming-ink: #24527f;
+  --color-upcoming-soft: #e1edf7;
+  --color-upcoming-ink: #245f87;
 
-  --shadow-soft: 0 1px 2px rgb(59 38 24 / 0.06), 0 8px 24px -12px rgb(59 38 24 / 0.18);
-  --shadow-lift: 0 2px 4px rgb(59 38 24 / 0.08), 0 18px 40px -18px rgb(59 38 24 / 0.32);
+  /* Type scale (new names only; Tailwind's text-xs…text-9xl stay as they are) */
+  --text-eyebrow: 0.6875rem;
+  --text-eyebrow--line-height: 1.4;
+  --text-body-sm: 0.75rem;
+  --text-body-sm--line-height: 1.5;
+  --text-body: 0.8125rem;
+  --text-body--line-height: 1.5;
+  --text-body-lg: 0.9375rem;
+  --text-body-lg--line-height: 1.6;
+  --text-lede: 1.125rem;
+  --text-lede--line-height: 1.65;
+  --text-card-title: 1.25rem;
+  --text-card-title--line-height: 1.18;
+  --text-title-sm: 1.4375rem;
+  --text-title-sm--line-height: 1.18;
+  --text-title: 1.6875rem;
+  --text-title--line-height: 1.08;
+  --text-page: 1.9375rem;
+  --text-page--line-height: 1.08;
+  --text-section: 2.1875rem;
+  --text-section--line-height: 1.08;
+  --text-display-sm: 2.625rem;
+  --text-display-sm--line-height: 1.05;
+  --text-display-md: 3.25rem;
+  --text-display-md--line-height: 1.05;
+  --text-display: 3.875rem;
+  --text-display--line-height: 1.02;
+
+  /* Radii (new names only) */
+  --radius-tile: 15px;
+  --radius-soft: 18px;
+  --radius-card: 22px;
+  --radius-panel: 24px;
+  --radius-phone: 42px;
+
+  /* Shadows */
+  --shadow-soft: 0 18px 50px rgb(74 52 38 / 0.09);
+  --shadow-lift: 0 2px 4px rgb(61 43 37 / 0.08), 0 24px 60px -18px rgb(61 43 37 / 0.3);
+  --shadow-button: 0 5px 0 #c58c1e;
+  --shadow-button-pressed: 0 2px 0 #c58c1e;
+  --shadow-recorder: 0 5px 14px rgb(120 50 40 / 0.2);
+  --shadow-paw: 0 10px 25px rgb(60 38 25 / 0.25);
+  --shadow-phone: 0 28px 70px rgb(65 44 31 / 0.22);
+  --shadow-online-ring: 0 0 0 5px rgb(125 203 155 / 0.16);
+  --shadow-inset-soft: inset 0 3px 12px rgb(255 255 255 / 0.2);
+  /* Depth: cards sit above the page; they rise further on hover. */
+  --shadow-card: 0 1px 2px rgb(61 43 37 / 0.05), 0 10px 26px -12px rgb(61 43 37 / 0.18);
+  --shadow-card-hover: 0 2px 4px rgb(61 43 37 / 0.06), 0 24px 48px -18px rgb(61 43 37 / 0.3);
+
+  /* Easing: fast start, long soft landing. */
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* Breakpoints from the design (mobile-first): mobile: above 500px, tablet: above 900px */
+  --breakpoint-mobile: 31.25rem;
+  --breakpoint-tablet: 56.25rem;
 
   --animate-breathe: breathe 5s ease-in-out infinite;
   --animate-wiggle: wiggle 1.6s ease-in-out infinite;
   --animate-led-pulse: led-pulse 1.4s ease-in-out infinite;
   --animate-led-blink: led-blink 1s steps(2, jump-none) infinite;
   --animate-wave: wave 1.2s ease-out infinite;
-  --animate-float-up: float-up 1.8s ease-out forwards;
+  --animate-float-up: float-up 1.5s ease-out forwards;
   --animate-shake: shake 0.5s ease-in-out;
   --animate-blink: blink 5.5s infinite;
-  --animate-fade-in: fade-in 0.25s ease-out;
+  --animate-fade-in: fade-in 0.2s ease-out;
+  --animate-sound: sound 0.6s ease-in-out infinite alternate;
+  --animate-pop-in: pop-in 0.18s ease-out;
+  --animate-page-in: page-in 0.5s cubic-bezier(0.16, 1, 0.3, 1) backwards;
+  --animate-bubble-in: bubble-in 0.35s cubic-bezier(0.16, 1, 0.3, 1) backwards;
+  --animate-shimmer: shimmer 1.6s ease-in-out infinite;
+  --animate-ping-soft: ping-soft 2s cubic-bezier(0, 0, 0.2, 1) infinite;
+  --animate-attention: attention 1.6s ease-out infinite;
 
   @keyframes breathe {
     0%, 100% { transform: translateY(0) scale(1); }
@@ -103,8 +193,37 @@
     95% { transform: scaleY(0.1); }
   }
   @keyframes fade-in {
-    from { opacity: 0; transform: translateY(4px); }
+    from { opacity: 0; transform: translateY(6px); }
     to { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes sound {
+    from { transform: scaleY(0.45); }
+    to { transform: scaleY(1); }
+  }
+  @keyframes pop-in {
+    from { opacity: 0; transform: scale(0.97); }
+    to { opacity: 1; transform: scale(1); }
+  }
+  /* Route change: content settles in. Ends with no transform so sticky/fixed children behave. */
+  @keyframes page-in {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: none; }
+  }
+  @keyframes bubble-in {
+    from { opacity: 0; transform: translateY(8px) scale(0.98); }
+    to { opacity: 1; transform: none; }
+  }
+  @keyframes shimmer {
+    from { background-position: 200% 0; }
+    to { background-position: -200% 0; }
+  }
+  @keyframes ping-soft {
+    0% { transform: scale(1); opacity: 0.55; }
+    80%, 100% { transform: scale(2.6); opacity: 0; }
+  }
+  @keyframes attention {
+    0% { box-shadow: 0 0 0 0 rgb(225 167 43 / 0.55); }
+    100% { box-shadow: 0 0 0 22px rgb(225 167 43 / 0); }
   }
 }
 
@@ -114,8 +233,8 @@
 
 html,
 body {
-  background: var(--color-cream-50);
-  color: var(--color-cocoa-900);
+  background: var(--color-cream);
+  color: var(--color-cocoa);
 }
 
 body {
@@ -123,9 +242,93 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+@layer base {
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-heading);
+    letter-spacing: -0.025em;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
+/*
+ * Scroll reveal (see components/ui/reveal.tsx). Content is visible by default;
+ * the component marks below-the-fold elements "pending" and shows them as they
+ * scroll into view: a long, soft rise.
+ */
+.reveal {
+  transition:
+    opacity 0.9s var(--ease-out-expo),
+    transform 0.9s var(--ease-out-expo);
+  transition-delay: var(--reveal-delay, 0ms);
+  will-change: opacity, transform;
+}
+.reveal[data-reveal="pending"] {
+  opacity: 0;
+  transform: translate3d(0, 40px, 0) scale(0.98);
+}
+.reveal[data-reveal="pending"][data-reveal-from="left"] {
+  transform: translate3d(-48px, 0, 0);
+}
+.reveal[data-reveal="pending"][data-reveal-from="right"] {
+  transform: translate3d(48px, 0, 0);
+}
+.reveal[data-reveal="pending"][data-reveal-from="scale"] {
+  transform: scale(0.94);
+}
+
+/* Loading placeholder with a moving sheen. */
+.skeleton {
+  background-image: linear-gradient(100deg, #efe7dc 0%, #efe7dc 35%, #faf5ee 50%, #efe7dc 65%, #efe7dc 100%);
+  background-size: 200% 100%;
+  animation: var(--animate-shimmer);
+}
+.skeleton-dark {
+  background-image: linear-gradient(
+    100deg,
+    rgb(255 255 255 / 0.08) 0%,
+    rgb(255 255 255 / 0.08) 35%,
+    rgb(255 255 255 / 0.18) 50%,
+    rgb(255 255 255 / 0.08) 65%,
+    rgb(255 255 255 / 0.08) 100%
+  );
+  background-size: 200% 100%;
+  animation: var(--animate-shimmer);
+}
+
+/* 3px translucent teal ring, 2px offset, on everything focusable. */
 :focus-visible {
-  outline: 3px solid var(--color-honey-500);
+  outline: 3px solid rgb(47 117 110 / 0.45);
   outline-offset: 2px;
+}
+
+/* Small uppercase label above headings. Use honey-dark only on paper/white. */
+@utility eyebrow {
+  font-family: var(--font-sans);
+  font-size: var(--text-eyebrow);
+  line-height: 1.4;
+  font-weight: 800;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+}
+
+/* Heading font on non-heading elements (stat values, big numbers). */
+@utility font-display {
+  font-family: var(--font-heading);
+  letter-spacing: -0.025em;
+}
+
+/* Subtle plush texture for bear stages. */
+@utility plush {
+  background-image:
+    radial-gradient(circle at 50% 46%, rgb(255 253 249 / 0.9) 0, rgb(255 253 249 / 0) 46%),
+    repeating-linear-gradient(135deg, rgb(157 104 69 / 0.045) 0 2px, transparent 2px 14px);
 }
 
 /* The paw: no text selection, no long-press menu, no scroll-steal while holding. */
@@ -148,5 +351,28 @@ body {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+  }
+  .motion-lift {
+    transform: none !important;
+  }
+  /* Never hide content behind a scroll animation when motion is reduced. */
+  .reveal,
+  .reveal[data-reveal="pending"] {
+    opacity: 1 !important;
+    transform: none !important;
+  }
+  .skeleton,
+  .skeleton-dark {
+    animation: none !important;
+  }
+}
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  html,
+  body {
+    background: #fff;
   }
 }

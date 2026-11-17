@@ -5,12 +5,23 @@ export const STATUS_META: Record<DoseStatusT, { label: string; short: string; to
   TAKEN: { label: "Taken on time", short: "Taken", tone: "taken" },
   LATE: { label: "Taken late", short: "Late", tone: "late" },
   MISSED: { label: "Missed", short: "Missed", tone: "missed" },
-  AWAY: { label: "Away (excused)", short: "Away", tone: "away" },
+  AWAY: { label: "Away / excused", short: "Away", tone: "away" },
   UPCOMING: { label: "Upcoming", short: "Upcoming", tone: "upcoming" },
   REMINDED: { label: "Reminder played", short: "Reminded", tone: "upcoming" },
 };
 
-export type Tone = "taken" | "late" | "missed" | "away" | "upcoming" | "neutral";
+export type Tone =
+  | "taken"
+  | "late"
+  | "missed"
+  | "away"
+  | "upcoming"
+  | "neutral"
+  | "online"
+  | "offline"
+  | "consent"
+  | "warning"
+  | "service";
 
 /** Tailwind classes per tone (pill background / text / dot). */
 export const TONE_CLASSES: Record<Tone, { pill: string; dot: string; solid: string }> = {
@@ -19,7 +30,12 @@ export const TONE_CLASSES: Record<Tone, { pill: string; dot: string; solid: stri
   missed: { pill: "bg-missed-soft text-missed-ink", dot: "bg-missed", solid: "bg-missed" },
   away: { pill: "bg-away-soft text-away-ink", dot: "bg-away", solid: "bg-away" },
   upcoming: { pill: "bg-upcoming-soft text-upcoming-ink", dot: "bg-upcoming", solid: "bg-upcoming" },
-  neutral: { pill: "bg-cream-200 text-cocoa-700", dot: "bg-cocoa-300", solid: "bg-cocoa-300" },
+  neutral: { pill: "bg-cream-deep text-cocoa-700", dot: "bg-cocoa-400", solid: "bg-cocoa-300" },
+  online: { pill: "bg-taken-soft text-taken-ink", dot: "bg-taken", solid: "bg-taken" },
+  offline: { pill: "bg-away-soft text-away-ink", dot: "bg-away", solid: "bg-away" },
+  consent: { pill: "bg-taken-soft text-taken-ink", dot: "bg-taken", solid: "bg-taken" },
+  warning: { pill: "bg-late-soft text-late-ink", dot: "bg-late", solid: "bg-late" },
+  service: { pill: "bg-[#e8e1f3] text-[#4b3d6b]", dot: "bg-[#8d7bb5]", solid: "bg-lavender" },
 };
 
 export const LOGGED_BY_LABEL: Record<LoggedByT, string> = {

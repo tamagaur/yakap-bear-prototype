@@ -1,182 +1,235 @@
 import clsx from "clsx";
+import { useId } from "react";
 
+export type BearExpression = "happy" | "puzzled" | "sleepy" | "proud";
+/** Chest heart: honey patch by default, or a status light on the simulated device. */
+export type HeartLight = "honey" | "green" | "blue" | "amber" | "gray";
+
+/** Earlier simulator vocabulary, kept so the device logic reads naturally. */
 export type BearMood = "idle" | "reminder" | "happy" | "ignored" | "sleepy";
 export type LedColor = "green" | "blue" | "amber" | "gray";
 
-const LED: Record<LedColor, { fill: string; className?: string; label: string }> = {
-  green: { fill: "#4cc27a", label: "Status light: green — idle and connected" },
-  blue: { fill: "#4a9be0", className: "animate-led-pulse", label: "Status light: blue, pulsing — reminder waiting" },
-  amber: { fill: "#f2a33a", className: "animate-led-blink", label: "Status light: amber, blinking — low battery" },
-  gray: { fill: "#a39a93", label: "Status light: gray — offline" },
+const HEART: Record<HeartLight, { fill: string; className?: string }> = {
+  honey: { fill: "#e7af37" },
+  green: { fill: "#4cc27a" },
+  blue: { fill: "#4a9be0", className: "animate-led-pulse" },
+  amber: { fill: "#f2a33a", className: "animate-led-blink" },
+  gray: { fill: "#a39a93" },
 };
 
-const INK = "var(--color-cocoa-950)";
+const INK = "#32211b";
+const MOUTH = "#4a2d24";
 
 /**
- * Original Yakap Bear illustration (task S1). Plush proportions, a heart
- * status light on the chest, a speaker grille on the belly (with sound waves
- * while speaking) and a raised right paw that the PawButton sits on.
+ * The Yakap Bear mascot: one SVG, four expressions, shared geometry
+ * (280×330 reference canvas).
+ * Decorative by default; pass `label` when the bear itself carries meaning.
  */
-export function BearFigure({
-  mood,
-  led,
-  speaking,
-  className,
+export function Bear({
+  expression = "happy",
+  heart = "honey",
+  motion = "none",
+  hearts = false,
   shakeKey = 0,
+  label,
+  className,
 }: {
-  mood: BearMood;
-  led: LedColor;
-  speaking: boolean;
-  className?: string;
-  /** Change to re-trigger the "ignored" head shake. */
+  expression?: BearExpression;
+  heart?: HeartLight;
+  motion?: "none" | "breathe" | "wiggle";
+  /** Two small hearts float up (dose recorded). */
+  hearts?: boolean;
+  /** Change to re-trigger the gentle head shake. */
   shakeKey?: number;
+  label?: string;
+  className?: string;
 }) {
-  const ledMeta = LED[led];
-  const origin = { transformBox: "fill-box", transformOrigin: "50% 100%" } as const;
+  const uid = useId().replace(/[^a-zA-Z0-9]/g, "");
+  const id = (n: string) => `${n}-${uid}`;
+  const light = HEART[heart];
+  const box = { transformBox: "fill-box" } as const;
+
   return (
-    <svg viewBox="0 0 300 340" className={clsx("w-full h-auto overflow-visible", className)} role="img" aria-label={`Yakap Bear — ${ledMeta.label}`}>
+    <svg
+      viewBox="0 0 280 350"
+      className={clsx("h-auto overflow-visible drop-shadow-[0_22px_14px_rgba(77,51,31,0.17)]", className ?? "w-full")}
+      role={label ? "img" : undefined}
+      aria-label={label}
+      aria-hidden={label ? undefined : true}
+    >
       <defs>
-        <radialGradient id="fur-shade" cx="50%" cy="35%" r="70%">
-          <stop offset="0%" stopColor="#c08a5d" />
-          <stop offset="100%" stopColor="var(--color-fur)" />
+        <radialGradient id={id("head")} cx="40%" cy="30%" r="70%">
+          <stop offset="0%" stopColor="#c9946c" />
+          <stop offset="100%" stopColor="#a86f49" />
         </radialGradient>
-        <filter id="led-glow" x="-100%" y="-100%" width="300%" height="300%">
+        <radialGradient id={id("body")} cx="40%" cy="20%" r="80%">
+          <stop offset="0%" stopColor="#bc835c" />
+          <stop offset="100%" stopColor="#955f40" />
+        </radialGradient>
+        <pattern id={id("plush")} width="6" height="6" patternUnits="userSpaceOnUse">
+          <circle cx="3" cy="3" r="0.75" fill="#fff" />
+        </pattern>
+        <filter id={id("glow")} x="-100%" y="-100%" width="300%" height="300%">
           <feGaussianBlur stdDeviation="5" />
         </filter>
       </defs>
 
-      <ellipse cx="150" cy="330" rx="112" ry="9" fill="var(--color-cocoa-900)" opacity="0.08" />
-
-      <g className={clsx(mood === "reminder" ? "animate-wiggle" : mood !== "sleepy" && "animate-breathe")} style={origin}>
-        {/* feet */}
-        <ellipse cx="98" cy="310" rx="40" ry="23" fill="url(#fur-shade)" />
-        <ellipse cx="202" cy="310" rx="40" ry="23" fill="url(#fur-shade)" />
-        <ellipse cx="98" cy="314" rx="19" ry="10" fill="var(--color-paw-pad)" />
-        <ellipse cx="202" cy="314" rx="19" ry="10" fill="var(--color-paw-pad)" />
-
-        {/* left arm (resting) */}
-        <ellipse cx="60" cy="238" rx="26" ry="47" transform="rotate(16 60 238)" fill="var(--color-fur-dark)" />
-        {/* right arm (reaching towards the paw button) */}
-        <ellipse cx="238" cy="252" rx="27" ry="52" transform="rotate(-42 238 252)" fill="var(--color-fur-dark)" />
+      <g
+        className={clsx(motion === "wiggle" && "animate-wiggle", motion === "breathe" && "animate-breathe")}
+        style={{ ...box, transformOrigin: "50% 100%" }}
+      >
+        {/* ears, behind the head */}
+        {[67, 213].map((cx) => (
+          <g key={cx}>
+            <circle cx={cx} cy="53" r="39" fill="#c58f68" />
+            <circle cx={cx} cy="53" r="25" fill="#8e5d3f" />
+            <circle cx={cx} cy="53" r="21" fill="#9d6845" />
+          </g>
+        ))}
 
         {/* body */}
-        <ellipse cx="150" cy="250" rx="100" ry="82" fill="url(#fur-shade)" />
-        <ellipse cx="150" cy="264" rx="60" ry="53" fill="var(--color-fur-light)" />
+        <ellipse cx="140" cy="255.5" rx="85" ry="67.5" fill={`url(#${id("body")})`} stroke="#7f5138" strokeWidth="3" />
+        <ellipse cx="140" cy="255.5" rx="76" ry="59" fill={`url(#${id("plush")})`} opacity="0.2" />
 
-        {/* speaker grille */}
-        <g opacity="0.75">
-          {[254, 266, 278].map((y, r) =>
-            (r === 1 ? [-24, -12, 0, 12, 24] : [-12, 0, 12]).map((dx) => (
-              <circle key={`${y}-${dx}`} cx={150 + dx} cy={y} r="2.8" fill="var(--color-cocoa-400)" />
-            )),
-          )}
-        </g>
-        {speaking && (
-          <g fill="none" stroke="var(--color-honey-500)" strokeWidth="4" strokeLinecap="round">
-            <path d="M188 250 q10 16 0 32" className="animate-wave" style={{ transformBox: "fill-box", transformOrigin: "0% 50%" }} />
-            <path d="M198 242 q16 24 0 48" className="animate-wave [animation-delay:0.3s]" style={{ transformBox: "fill-box", transformOrigin: "0% 50%" }} />
-            <path d="M112 250 q-10 16 0 32" className="animate-wave" style={{ transformBox: "fill-box", transformOrigin: "100% 50%" }} />
-            <path d="M102 242 q-16 24 0 48" className="animate-wave [animation-delay:0.3s]" style={{ transformBox: "fill-box", transformOrigin: "100% 50%" }} />
-          </g>
+        {/* heart patch / status light */}
+        {heart !== "honey" && heart !== "gray" && (
+          <path
+            d="M140 262 l-13 -13 a7.6 7.6 0 0 1 13 -9.6 a7.6 7.6 0 0 1 13 9.6 z"
+            fill={light.fill}
+            filter={`url(#${id("glow")})`}
+            opacity="0.85"
+            className={light.className}
+            style={{ color: light.fill }}
+          />
         )}
+        <path d="M140 264 l-13 -13 a7.6 7.6 0 0 1 13 -9.6 a7.6 7.6 0 0 1 13 9.6 z" fill="#704d35" />
+        <path
+          d="M140 262 l-13 -13 a7.6 7.6 0 0 1 13 -9.6 a7.6 7.6 0 0 1 13 9.6 z"
+          fill={light.fill}
+          className={light.className}
+        />
 
-        {/* heart status light */}
-        <path
-          d="M150 212 l-10 -10 a6 6 0 0 1 10 -7.5 a6 6 0 0 1 10 7.5 z"
-          fill={ledMeta.fill}
-          filter="url(#led-glow)"
-          opacity={led === "gray" ? 0 : 0.85}
-          className={ledMeta.className}
-          style={{ color: ledMeta.fill }}
-        />
-        <path
-          d="M150 212 l-10 -10 a6 6 0 0 1 10 -7.5 a6 6 0 0 1 10 7.5 z"
-          fill={ledMeta.fill}
-          stroke="#fff"
-          strokeOpacity="0.7"
-          strokeWidth="1.5"
-          className={ledMeta.className}
-        />
+        {/* dotted seam */}
+        <g fill="#6f4934">
+          {[118, 129, 140, 151, 162].map((x) => (
+            <circle key={x} cx={x} cy="304" r="1.5" />
+          ))}
+        </g>
+
+        {/* arms, rotated outward 24° */}
+        <ellipse cx="53" cy="264" rx="36" ry="69" transform="rotate(24 53 264)" fill="#a86f49" stroke="#7f5138" strokeWidth="3" />
+        <ellipse cx="227" cy="264" rx="36" ry="69" transform="rotate(-24 227 264)" fill="#a86f49" stroke="#7f5138" strokeWidth="3" />
+
+        {/* legs */}
+        <ellipse cx="85.5" cy="303.5" rx="46.5" ry="42.5" transform="rotate(-8 85.5 303.5)" fill="#a86f49" stroke="#7f5138" strokeWidth="3" />
+        <ellipse cx="194.5" cy="303.5" rx="46.5" ry="42.5" transform="rotate(8 194.5 303.5)" fill="#a86f49" stroke="#7f5138" strokeWidth="3" />
 
         {/* head */}
-        <g key={shakeKey} className={clsx(mood === "ignored" && "animate-shake")} style={{ transformBox: "fill-box", transformOrigin: "50% 80%" }}>
-          <circle cx="76" cy="60" r="34" fill="url(#fur-shade)" />
-          <circle cx="224" cy="60" r="34" fill="url(#fur-shade)" />
-          <circle cx="76" cy="60" r="19" fill="var(--color-paw-pad)" />
-          <circle cx="224" cy="60" r="19" fill="var(--color-paw-pad)" />
-          <ellipse cx="150" cy="112" rx="94" ry="80" fill="url(#fur-shade)" />
-          <ellipse cx="150" cy="142" rx="45" ry="33" fill="var(--color-fur-light)" />
+        <g key={shakeKey} className={clsx(shakeKey > 0 && "animate-shake")} style={{ ...box, transformOrigin: "50% 80%" }}>
+          <ellipse cx="140" cy="126" rx="106" ry="95" fill={`url(#${id("head")})`} stroke="#87583d" strokeWidth="3" />
+          <ellipse cx="140" cy="126" rx="97" ry="86" fill={`url(#${id("plush")})`} opacity="0.2" />
+
+          {/* stitched × */}
+          <g stroke="#72462e" strokeWidth="1.8" strokeLinecap="round" transform="rotate(12 211 63)">
+            <path d="M207 59 l8 8M215 59 l-8 8" />
+          </g>
 
           {/* eyes */}
-          {mood === "happy" ? (
+          {expression === "sleepy" ? (
+            <g fill="none" stroke={MOUTH} strokeWidth="4" strokeLinecap="round">
+              <path d="M84 113 Q97 124 110 113" />
+              <path d="M170 113 Q183 124 196 113" />
+            </g>
+          ) : expression === "proud" ? (
             <g fill="none" stroke={INK} strokeWidth="5" strokeLinecap="round">
-              <path d="M104 108 q12 -14 24 0" />
-              <path d="M172 108 q12 -14 24 0" />
-            </g>
-          ) : mood === "sleepy" ? (
-            <g stroke={INK} strokeWidth="5" strokeLinecap="round">
-              <path d="M104 106 h24" />
-              <path d="M172 106 h24" />
+              <path d="M87 117 Q97.5 103 108 117" />
+              <path d="M172 117 Q182.5 103 193 117" />
             </g>
           ) : (
-            <g className="animate-blink" style={{ transformBox: "fill-box", transformOrigin: "50% 50%" }}>
-              <circle cx="116" cy={mood === "ignored" ? 108 : 104} r="10" fill={INK} />
-              <circle cx="184" cy={mood === "ignored" ? 108 : 104} r="10" fill={INK} />
-              <circle cx="112.5" cy={mood === "ignored" ? 105 : 100.5} r="3.2" fill="#fff" />
-              <circle cx="180.5" cy={mood === "ignored" ? 105 : 100.5} r="3.2" fill="#fff" />
+            <g className="animate-blink" style={{ ...box, transformOrigin: "50% 50%" }}>
+              <ellipse cx="97.5" cy="113" rx="8.5" ry="10" fill={INK} />
+              <ellipse cx="182.5" cy="113" rx="8.5" ry="10" fill={INK} />
+              <circle cx="94.5" cy="108.5" r="2.5" fill="#fff" />
+              <circle cx="179.5" cy="108.5" r="2.5" fill="#fff" />
             </g>
           )}
-          {mood === "ignored" && (
-            // gently puzzled brows (inner ends raised) — never angry
-            <g stroke={INK} strokeWidth="3.5" strokeLinecap="round">
-              <path d="M104 92 l18 -6" />
-              <path d="M196 92 l-18 -6" />
+          {expression === "puzzled" && (
+            // asymmetric brows: curious, never cross
+            <g fill="none" stroke={MOUTH} strokeWidth="3.5" strokeLinecap="round">
+              <path d="M84 91 Q96 82 108 88" />
+              <path d="M172 92 Q183 89 194 92" />
             </g>
           )}
 
-          {/* cheeks */}
-          <ellipse cx="96" cy="138" rx="14" ry="8.5" fill="#f5a3a3" opacity={mood === "happy" ? 0.85 : 0.5} />
-          <ellipse cx="204" cy="138" rx="14" ry="8.5" fill="#f5a3a3" opacity={mood === "happy" ? 0.85 : 0.5} />
-
-          {/* nose */}
-          <path d="M135 127 q15 -9 30 0 q-4 15 -15 17 q-11 -2 -15 -17z" fill={INK} />
-          <ellipse cx="144" cy="127" rx="4" ry="2" fill="#fff" opacity="0.35" />
-
-          {/* mouth */}
-          {mood === "happy" ? (
-            <path d="M134 150 q16 20 32 0 q-16 8 -32 0z" fill={INK} />
-          ) : mood === "reminder" ? (
-            <ellipse cx="150" cy="156" rx="7" ry={speaking ? 7 : 4.5} fill={INK} className={speaking ? "animate-pulse" : undefined} />
-          ) : mood === "ignored" ? (
-            <path d="M141 156 q9 -3 18 0" fill="none" stroke={INK} strokeWidth="4" strokeLinecap="round" />
+          {/* muzzle, nose, mouth */}
+          <ellipse cx="140" cy="162" rx="44" ry="35" fill="#e1b58e" stroke="#946346" strokeWidth="2" />
+          <ellipse cx="140" cy="148.5" rx="12" ry="8.5" fill={MOUTH} />
+          {expression === "puzzled" ? (
+            <circle cx="140" cy="171" r="7.5" fill="none" stroke={MOUTH} strokeWidth="3" />
+          ) : expression === "sleepy" ? (
+            <path d="M131 168 Q140 173 149 168" fill="none" stroke={MOUTH} strokeWidth="3" strokeLinecap="round" />
+          ) : expression === "proud" ? (
+            <path d="M124 165 Q140 182 156 165" fill="none" stroke={MOUTH} strokeWidth="3.2" strokeLinecap="round" />
           ) : (
-            <path d="M139 151 q11 10 22 0" fill="none" stroke={INK} strokeWidth="4" strokeLinecap="round" />
+            <path d="M128 166 Q140 177 152 166" fill="none" stroke={MOUTH} strokeWidth="3" strokeLinecap="round" />
           )}
         </g>
 
-        {/* floating hearts when a dose is recorded */}
-        {mood === "happy" && (
-          <g fill="#f07c8a">
+        {hearts && (
+          <g fill="#e58a96">
             {[
-              { x: 30, y: 60, delay: "0s" },
-              { x: 272, y: 70, delay: "0.35s" },
-              { x: 22, y: 120, delay: "0.7s" },
+              { x: 26, y: 70, delay: "0s" },
+              { x: 256, y: 84, delay: "0.4s" },
             ].map((h) => (
               <path
                 key={h.x}
                 d={`M${h.x} ${h.y} l-9 -9 a5.5 5.5 0 0 1 9 -7 a5.5 5.5 0 0 1 9 7 z`}
                 className="animate-float-up"
-                style={{ animationDelay: h.delay, transformBox: "fill-box", transformOrigin: "50% 50%" }}
+                style={{ ...box, animationDelay: h.delay, transformOrigin: "50% 50%" }}
               />
             ))}
           </g>
         )}
-        {mood === "sleepy" && (
-          <text x="238" y="30" fontSize="22" fontWeight="900" fill="var(--color-cocoa-400)">
+        {expression === "sleepy" && (
+          <text x="232" y="34" fontSize="22" fontWeight="800" fill="#b3a69d">
             z<tspan dy="-10" fontSize="16">z</tspan>
           </text>
         )}
       </g>
     </svg>
+  );
+}
+
+const MOOD_EXPRESSION: Record<BearMood, BearExpression> = {
+  idle: "happy",
+  reminder: "happy",
+  happy: "proud",
+  ignored: "puzzled",
+  sleepy: "sleepy",
+};
+
+/** The simulated device: the mascot plus mood-driven motion and the heart status light. */
+export function BearFigure({
+  mood,
+  led,
+  className,
+  shakeKey = 0,
+}: {
+  mood: BearMood;
+  led: LedColor;
+  /** Kept for callers; the design shows sound bars in the speech bubble instead of on the chest. */
+  speaking?: boolean;
+  className?: string;
+  shakeKey?: number;
+}) {
+  return (
+    <Bear
+      expression={MOOD_EXPRESSION[mood]}
+      heart={led}
+      motion={mood === "reminder" ? "wiggle" : mood === "sleepy" ? "none" : "breathe"}
+      hearts={mood === "happy"}
+      shakeKey={mood === "ignored" ? shakeKey : 0}
+      className={className}
+    />
   );
 }

@@ -148,6 +148,8 @@ pub struct HistoryInput<'a> {
     pub late_minutes: i32,
     /// Forced outcomes per (date, "HH:mm").
     pub forced: HashMap<(NaiveDate, &'static str), Outcome>,
+    /// Cap on *random* misses per weekday × dose time, so a scripted pattern stays on top.
+    pub miss_cap: Option<u32>,
     pub correction: Option<CorrectionSpec>,
 }
 
@@ -159,6 +161,7 @@ pub fn generate(input: &HistoryInput<'_>) -> HistoryRows {
     let p = input.patient;
     let mut rng = Mulberry32::new(input.seed);
     let mut rows = HistoryRows::default();
+    let mut random_misses: HashMap<(u32, &'static str), u32> = HashMap::new();
 
     for s in p.schedules {
         let effective = time::add_days(input.today, -s.since_days);
@@ -194,11 +197,25 @@ pub fn generate(input: &HistoryInput<'_>) -> HistoryRows {
             if w.late_end >= input.now {
                 continue;
             }
-            let outcome = input
-                .forced
-                .get(&(date, s.time_of_day))
-                .copied()
-                .unwrap_or_else(|| pick_outcome(&p.profile, time::weekday(scheduled_for), s.time_of_day, &mut rng));
+            let outcome = match input.forced.get(&(date, s.time_of_day)).copied() {
+                Some(o) => o,
+                None => {
+                    let weekday = time::weekday(scheduled_for);
+                    let picked = pick_outcome(&p.profile, weekday, s.time_of_day, &mut rng);
+                    match (picked, input.miss_cap) {
+                        (Outcome::Missed, Some(cap)) => {
+                            let n = random_misses.entry((weekday, s.time_of_day)).or_insert(0);
+                            if *n >= cap {
+                                Outcome::Taken
+                            } else {
+                                *n += 1;
+                                Outcome::Missed
+                            }
+                        }
+                        _ => picked,
+                    }
+                }
+            };
 
             match outcome {
                 Outcome::Taken => {
@@ -326,6 +343,7 @@ mod tests {
             window_minutes: 30,
             late_minutes: 60,
             forced: HashMap::new(),
+            miss_cap: None,
             correction: None,
         })
     }

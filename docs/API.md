@@ -94,15 +94,20 @@ guessed IDs. Views and exports are audited.
 
 | Method & path | Query / body | Response |
 |---|---|---|
-| `GET /api/clinic/overview` | — | Dashboard home: `{ role, clinicName, now, clinician, admin }` — clinicians get `clinician = { patients, withData, awayNow, week (7-day counts + onTimePct/adherencePct), today { taken, late, missed, away, upcoming }, needsAttention[], recentMissed[] }` across **their consented patients only**; clinic admins get `admin = { clinicians, activeConsents, consentingPatients, views7, exports7, consentChanges7, corrections7, recentActivity[] }` (no patient dose data) |
-| `GET /api/clinic/patients` | `?q=` search | `{ patients: ClinicPatientRow[], role }` (admins get `[]`) |
-| `GET /api/clinic/patients/:id` | — | `ClinicPatientDetail` (audited: VIEW_PATIENT, de-duplicated per 5 min) |
+| `GET /api/clinic/overview` | — | Dashboard home: `{ role, clinicName, now, clinician, admin }` — clinicians get `clinician = { patients, withData, awayNow, week (7-day counts + onTimePct/adherencePct), weekPrev (the 7 days before), weekly[6] { from, to, onTimePct, adherencePct, counted } oldest → newest, today { taken, late, missed, away, upcoming }, needsAttention[] { id, fullName, nickname, missed7, onTimePct7, reasons[], topPattern }, recentMissed[] }` across **their consented patients only**; clinic admins get `admin = { clinicians, activeConsents, consentingPatients, views7, exports7 (CSV, PDF and printed sheets), consentChanges7, corrections7, recentActivity[] }` (no patient dose data) |
+| `GET /api/clinic/patients` | `?q=` search | `{ patients: ClinicPatientRow[], role }` (admins get `[]`). Each row has `spark`: on-time % for the last four 7-day buckets, oldest → newest, `null` where no doses counted |
+| `GET /api/clinic/patients/:id` | — | `ClinicPatientDetail` (audited: VIEW_PATIENT, de-duplicated per 5 min). Includes `device { id, batteryPct, lowBattery, online, lastSeenAt } \| null` (never the device key) and `familyContacts[] { name, relationship, receivesSms }` |
 | `GET /api/clinic/patients/:id/doses` | `?from&to&status&sort=scheduledFor\|status&order=asc\|desc` | `{ from, to, doses }` |
 | `GET /api/clinic/patients/:id/summary` | `?days=7` (1–90) | `AdherenceSummary` `{ days, from, to, total, taken, late, missed, away, counted, onTimePct, adherencePct, daily[] }` |
 | `GET /api/clinic/patients/:id/pattern` | `?days=28` (7–90) | `{ times[], cells[weekday 0=Sun][time], hotspots[] }` |
 | `GET /api/clinic/patients/:id/export.csv` | `?from&to` | CSV download (audited: EXPORT_CSV) |
-| `POST /api/clinic/patients/:id/export-log` | `{ format: "pdf", from?, to? }` | rows for the browser-built PDF (audited: EXPORT_PDF) |
-| `GET /api/clinic/audit` | `?action=` | `{ entries: AuditEntry[], clinicName }` — CLINIC_ADMIN only |
+| `POST /api/clinic/patients/:id/export-log` | `{ format: "pdf" \| "print", from?, to? }` | rows + 30-day summary for the browser. `pdf` = dose-log PDF (audited: EXPORT_PDF); `print` = one-page check-up sheet (audited: PRINT_CHECKUP) |
+| `GET /api/clinic/audit` | `?action=` | `{ entries: AuditEntry[], clinicName }` — CLINIC_ADMIN only. Actions: VIEW_PATIENT, EXPORT_CSV, EXPORT_PDF, PRINT_CHECKUP, CORRECT_LOG, CONSENT_GRANT, CONSENT_REVOKE |
+
+`needsAttention`: a patient is listed with 2+ misses in the last 7 days, under 70% on time in the last 7 days, or one
+weekday × dose time missed 3+ times in the last 28 days. `topPattern = { weekday (0 = Sun), timeOfDay, missed, total }`
+is the most-missed slot with 2+ misses; its plain-language reason ("Missed 3 of the last 4 Sunday 8:00 PM doses") comes
+first in `reasons`. Counts only; no clinical conclusions.
 
 ## Demo (mutations require `DEMO_MODE=true`)
 
@@ -112,4 +117,5 @@ guessed IDs. Views and exports are audited.
 | `POST /api/demo/clock` | `{ action: "advance", minutes }` · `{ action: "next-dose", deviceId? }` · `{ action: "past-window", deviceId? }` | clock + `message` |
 | `POST /api/demo/reset` | — | `{ ok, now, counts }` — clock → 7:45 PM Manila today |
 | `GET /api/demo/devices` | — | `{ devices: [{ id, deviceKey, patientNickname, patientName }] }` (simulator pairing) |
+| `GET /api/demo/overview` | `?deviceId=BEAR-0001` | Launcher data: `{ now, patient { id, fullName, nickname }, device { id, batteryPct, lowBattery, online, lastSeenAt }, nextDose { id, scheduledFor, label, pillNote, status } \| null, openAlerts, latestText { body, toName, recipients[], createdAt } \| null, reminder { title, recordedByName, isSample } \| null, people { family, clinician, admin } }`. 403 unless `DEMO_MODE=true`; 404 for an unknown bear. Never returns device keys or audio URLs |
 | `GET /api/health` | — | `{ ok: true }` |

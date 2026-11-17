@@ -16,7 +16,7 @@ import { ButtonLink } from "@/components/ui/button";
 import { Card, CardHeader } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Notice } from "@/components/ui/notice";
-import { LoadingBlock, Skeleton } from "@/components/ui/spinner";
+import { SkeletonPage, Skeleton } from "@/components/ui/spinner";
 import { Pill, StatusPill } from "@/components/ui/status-pill";
 import { ApiClientError, errorMessage, fetcher } from "@/lib/api-client";
 import type { AdherenceSummaryDTO, ClinicPatientDetailDTO, PatternDTO } from "@/lib/contracts/clinic";
@@ -107,7 +107,7 @@ function Detail() {
       <Notice tone="error" title="Couldn't open this patient">{errorMessage(error)}</Notice>
     );
   }
-  if (!d || !filters) return <LoadingBlock label="Opening the dose log…" />;
+  if (!d || !filters) return <SkeletonPage label="Opening the dose log…" />;
   const hasData = !!d.firstDoseDate;
 
   return (

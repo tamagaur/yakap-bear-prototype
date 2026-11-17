@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { AuditActionSchema, DateKeySchema, DoseStatusSchema, RoleSchema } from "./common";
 import { DoseEventSchema } from "./doses";
+import { DeviceSchema } from "./patients";
 import { ScheduleSchema } from "./schedules";
 
 export const AdherenceSummarySchema = z.object({
@@ -42,6 +43,8 @@ export const ClinicPatientRowSchema = z.object({
     .nullable(),
   awayNow: z.boolean(),
   hasData: z.boolean(),
+  /** On-time % for the last four 7-day buckets, oldest → newest. null = no counted doses. */
+  spark: z.array(z.number().nullable()),
 });
 export type ClinicPatientRowDTO = z.infer<typeof ClinicPatientRowSchema>;
 
@@ -57,7 +60,9 @@ export const ClinicPatientDetailSchema = z.object({
     grantedByName: z.string(),
     consentVersion: z.string(),
   }),
-  familyContacts: z.array(z.object({ name: z.string(), relationship: z.string() })),
+  familyContacts: z.array(z.object({ name: z.string(), relationship: z.string(), receivesSms: z.boolean() })),
+  /** The paired bear: id, battery and last seen. Never the device key. */
+  device: DeviceSchema.nullable(),
   schedules: z.array(ScheduleSchema),
   awayPeriods: z.array(
     z.object({ startDate: z.string(), endDate: z.string(), reason: z.string(), active: z.boolean() }),
@@ -91,11 +96,18 @@ export const PatternSchema = z.object({
       z.object({ missed: z.number(), late: z.number(), taken: z.number(), total: z.number() }),
     ),
   ),
-  hotspots: z.array(
-    z.object({ weekday: z.number(), timeOfDay: z.string(), missed: z.number(), total: z.number() }),
-  ),
+  hotspots: z.array(z.lazy(() => HotspotSchema)),
 });
 export type PatternDTO = z.infer<typeof PatternSchema>;
+
+/** A weekday (0 = Sunday) × dose time and how often it was missed. */
+export const HotspotSchema = z.object({
+  weekday: z.number(),
+  timeOfDay: z.string(),
+  missed: z.number(),
+  total: z.number(),
+});
+export type HotspotDTO = z.infer<typeof HotspotSchema>;
 
 const WeekCountsSchema = z.object({
   total: z.number(),
@@ -119,6 +131,18 @@ export const ClinicOverviewSchema = z.object({
       withData: z.number(),
       awayNow: z.number(),
       week: WeekCountsSchema,
+      /** The 7 Manila days before `week`. */
+      weekPrev: WeekCountsSchema,
+      /** Six 7-day buckets, oldest → newest. */
+      weekly: z.array(
+        z.object({
+          from: z.string(),
+          to: z.string(),
+          onTimePct: z.number().nullable(),
+          adherencePct: z.number().nullable(),
+          counted: z.number(),
+        }),
+      ),
       today: z.object({
         taken: z.number(),
         late: z.number(),
@@ -134,6 +158,8 @@ export const ClinicOverviewSchema = z.object({
           missed7: z.number(),
           onTimePct7: z.number().nullable(),
           reasons: z.array(z.string()),
+          /** Most-missed weekday × dose time over the last 28 days (2+ misses). */
+          topPattern: HotspotSchema.nullable(),
         }),
       ),
       recentMissed: z.array(
@@ -163,7 +189,8 @@ export const ClinicOverviewSchema = z.object({
 export type ClinicOverviewDTO = z.infer<typeof ClinicOverviewSchema>;
 
 export const ExportRequestSchema = z.object({
-  format: z.literal("pdf"),
+  /** "pdf" = dose-log PDF (EXPORT_PDF) · "print" = one-page check-up sheet (PRINT_CHECKUP). */
+  format: z.enum(["pdf", "print"]),
   from: DateKeySchema.optional(),
   to: DateKeySchema.optional(),
 });

@@ -1,16 +1,20 @@
 import clsx from "clsx";
-import { AlertTriangle, CheckCircle2, Info, XCircle } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Info, Lock, XCircle } from "lucide-react";
 import type { ReactNode } from "react";
 
-type Tone = "info" | "success" | "warning" | "error";
+type Tone = "info" | "success" | "warning" | "danger" | "error" | "privacy" | "neutral";
 
 const STYLES: Record<Tone, { box: string; icon: ReactNode }> = {
-  info: { box: "bg-upcoming-soft text-upcoming-ink ring-upcoming/20", icon: <Info className="size-4" /> },
-  success: { box: "bg-taken-soft text-taken-ink ring-taken/20", icon: <CheckCircle2 className="size-4" /> },
-  warning: { box: "bg-late-soft text-late-ink ring-late/25", icon: <AlertTriangle className="size-4" /> },
-  error: { box: "bg-missed-soft text-missed-ink ring-missed/20", icon: <XCircle className="size-4" /> },
+  info: { box: "bg-upcoming-soft text-upcoming-ink border-blue/20", icon: <Info className="size-[18px]" /> },
+  success: { box: "bg-taken-soft text-taken-ink border-taken/25", icon: <CheckCircle2 className="size-[18px]" /> },
+  warning: { box: "bg-late-soft text-late-ink border-late/30", icon: <AlertTriangle className="size-[18px]" /> },
+  danger: { box: "bg-missed-soft text-missed-ink border-red/20", icon: <XCircle className="size-[18px]" /> },
+  error: { box: "bg-missed-soft text-missed-ink border-red/20", icon: <XCircle className="size-[18px]" /> },
+  privacy: { box: "bg-[#e9f3ee] text-[#1f4f4a] border-mint", icon: <Lock className="size-[18px]" /> },
+  neutral: { box: "bg-cream text-cocoa-700 border-line", icon: <Info className="size-[18px]" /> },
 };
 
+/** Icon + bold title + body + optional action. Meaning never rests on color alone. */
 export function Notice({
   tone = "info",
   title,
@@ -25,12 +29,15 @@ export function Notice({
   className?: string;
 }) {
   const s = STYLES[tone];
+  const urgent = tone === "error" || tone === "danger";
   return (
     <div
-      role={tone === "error" ? "alert" : "status"}
-      className={clsx("flex gap-3 rounded-2xl px-4 py-3 text-sm ring-1", s.box, className)}
+      role={urgent ? "alert" : "status"}
+      className={clsx("flex gap-3 rounded-[14px] border px-4 py-3 text-body", s.box, className)}
     >
-      <span className="mt-0.5 shrink-0">{s.icon}</span>
+      <span className="mt-px shrink-0" aria-hidden>
+        {s.icon}
+      </span>
       <div className="min-w-0 flex-1">
         {title && <p className="font-bold">{title}</p>}
         {children && <div className={clsx(title && "mt-0.5", "leading-relaxed")}>{children}</div>}

@@ -49,6 +49,12 @@ let r = await anon.post("/api/demo/reset", {});
 check("Reset demo before run", r.status === 200 && r.data.now.endsWith("11:45:00.000Z"), `clock ${r.data.now}`);
 const initialCounts = r.data.counts;
 
+// Launcher data (demo mode only): live strip, role cards, voice card
+const launch = await anon.get("/api/demo/overview");
+check("Launcher overview: bear, next dose, people", launch.status === 200 && launch.data.device.id === "BEAR-0001" && launch.data.nextDose?.label === "Evening" && launch.data.people.family?.name === "Ana Santos" && launch.data.people.admin?.name === "Carla Dizon", `next ${launch.data.nextDose?.label}, open alerts ${launch.data.openAlerts}`);
+check("    Launcher overview lists every recipient of the latest text", Array.isArray(launch.data.latestText?.recipients) && launch.data.latestText.recipients.length >= 1, (launch.data.latestText?.recipients ?? []).join(", "));
+check("    Launcher overview leaks no device key or audio URL", !/deviceKey|audioUrl/.test(JSON.stringify(launch.data)));
+
 // 1–2 launcher & bear pages
 check("1. Open the launcher", (await anon.get("/")).status === 200);
 check("2. Open the bear simulator", (await anon.get("/bear")).status === 200);
@@ -158,10 +164,24 @@ const b3 = devices.find((d) => d.id === "BEAR-0004");
 const sJun = (await (Object.assign(new Client(), { headers: { "x-bear-key": b3.deviceKey } })).get("/api/bear/BEAR-0004/state")).data;
 check("Missing voice recording → bear falls back to chime (voice null)", sJun.doses.every((d) => d.voice === null));
 
+// Design-refresh data: sparklines, paired bear, alert recipients, printed check-up sheet
+const rows = (await doctor.get("/api/clinic/patients")).data.patients;
+check("Patient list carries a 4-week sparkline per patient", rows.every((p) => Array.isArray(p.spark) && p.spark.length === 4) && rows.find((p) => p.id === "pat_carmela").spark.every((v) => v === null));
+const rosaDetail = (await doctor.get("/api/clinic/patients/pat_rosa")).data;
+check("Patient detail shows the paired bear and who gets texts", rosaDetail.device?.id === "BEAR-0001" && !("deviceKey" in rosaDetail.device) && rosaDetail.familyContacts.some((c) => c.receivesSms === true));
+const printed = await doctor.post("/api/clinic/patients/pat_rosa/export-log", { format: "print" });
+const printAudit = (await admin.get("/api/clinic/audit?action=PRINT_CHECKUP")).data.entries;
+check("Printing a check-up sheet is audited", printed.status === 200 && printAudit.length === 1 && printAudit[0].patientName === "Rosa Santos");
+
 // 21 reset
 r = await anon.post("/api/demo/reset", {});
 const voicesAfter = (await ana.get("/api/patients/pat_rosa/voice")).data.voices;
 check("21. Reset restores the initial state", JSON.stringify(r.data.counts) === JSON.stringify(initialCounts) && voicesAfter.length === 1 && voicesAfter[0].isSample, JSON.stringify(r.data.counts));
+const pat = (await doctor.get("/api/clinic/patients/pat_rosa/pattern?days=28")).data;
+check("    Seeded pattern: Lola Rosa most often misses Sunday 8:00 PM", pat.hotspots[0]?.weekday === 0 && pat.hotspots[0]?.timeOfDay === "20:00" && pat.hotspots[0]?.missed >= 3, JSON.stringify(pat.hotspots[0]));
+const dash = (await doctor.get("/api/clinic/overview")).data.clinician;
+const rosaAttn = dash.needsAttention.find((a) => a.id === "pat_rosa");
+check("    Dashboard: 6-week trend, last week, and Rosa's pattern reason", dash.weekly.length === 6 && dash.weekPrev.counted > 0 && /Sunday 8:00 PM/.test(rosaAttn?.reasons[0] ?? ""), rosaAttn?.reasons[0]);
 check("    Seeded sessions survive the reset", (await ana.get("/api/auth/me?area=family")).data.user?.email === "family@yakap.demo");
 
 console.log(results.join("\n"));

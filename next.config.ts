@@ -18,12 +18,6 @@ const nextConfig: NextConfig = {
   turbopack: {
     // Pin the workspace root (a stray lockfile in the home folder confuses detection).
     root: process.cwd(),
-    rules: {
-      "*.css": {
-        loaders: ["@tailwindcss/turbopack"],
-        as: "*.css",
-      },
-    },
   },
   async rewrites() {
     return [{ source: "/api/:path*", destination: `${API_URL}/api/:path*` }];

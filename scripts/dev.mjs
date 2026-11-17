@@ -7,7 +7,8 @@ import { spawn } from "node:child_process";
 
 const procs = [
   { name: "api", color: "\x1b[33m", cmd: "cargo", args: ["run", "--manifest-path", "backend/Cargo.toml"] },
-  { name: "web", color: "\x1b[36m", cmd: "npx", args: ["next", "dev"] },
+  // Through scripts/next.mjs so Tailwind's file watching works from "c:\…" terminals on Windows.
+  { name: "web", color: "\x1b[36m", cmd: "node", args: ["scripts/next.mjs", "dev"] },
 ];
 
 const children = procs.map((p) => {

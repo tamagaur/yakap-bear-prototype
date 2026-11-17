@@ -7,7 +7,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { type ReactNode, useEffect, useState } from "react";
 import { DemoBar } from "@/components/shared/demo-bar";
 import { Logo } from "@/components/shared/logo";
-import { LoadingBlock } from "@/components/ui/spinner";
+import { SkeletonPage } from "@/components/ui/spinner";
 import { useClinicUser } from "@/hooks/use-clinic-user";
 import { apiFetch } from "@/lib/api-client";
 
@@ -117,7 +117,7 @@ export function ClinicShell({ children }: { children: ReactNode }) {
                 Can&apos;t reach the Yakap API. Is the Rust server running?
               </div>
             ) : !user ? (
-              <LoadingBlock label="Checking your session…" />
+              <SkeletonPage label="Checking your session…" />
             ) : (
               children
             )}

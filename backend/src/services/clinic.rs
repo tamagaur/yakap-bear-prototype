@@ -10,10 +10,10 @@ use crate::{
     dose_select,
     dto::{
         AdminOverviewDto, AttentionDto, AuditEntryDto, ClinicAwayDto, ClinicConsentDto, ClinicPatientDetailDto,
-        ClinicPatientRowDto, ClinicianOverviewDto, DoseEventDto, LastDoseDto, NameRelationDto, RecentMissedDto,
-        TodayCountsDto,
+        ClinicPatientRowDto, ClinicianOverviewDto, DailyAdherenceDto, DoseEventDto, HotspotDto, LastDoseDto,
+        NameRelationDto, RecentMissedDto, TodayCountsDto, WeekPointDto,
     },
-    models::{AuditRow, ConsentFull, DoseEventFull, FamilyContact, Patient, ScheduleWithVoice, User},
+    models::{AuditRow, BearDevice, ConsentFull, DoseEventFull, FamilyContact, Patient, ScheduleWithVoice, User},
     schedule_select,
     services::{convert, dose_engine, insights},
     time::{self, format_time, iso},
@@ -24,6 +24,55 @@ struct ConsentedPatient {
     #[sqlx(flatten)]
     patient: Patient,
     granted_at: DateTime<Utc>,
+}
+
+const WEEKDAYS: [&str; 7] = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+
+fn pct(part: i64, whole: i64) -> Option<i64> {
+    (whole > 0).then(|| ((part as f64 / whole as f64) * 100.0).round() as i64)
+}
+
+/// On-time % per 7-day bucket of a daily series (oldest → newest). Away days don't count.
+fn weekly_on_time(daily: &[DailyAdherenceDto]) -> Vec<Option<i64>> {
+    daily
+        .chunks(7)
+        .map(|week| {
+            let taken: i64 = week.iter().map(|d| d.taken).sum();
+            let counted: i64 = week.iter().map(|d| d.taken + d.late + d.missed).sum();
+            pct(taken, counted)
+        })
+        .collect()
+}
+
+/// The weekday × dose time a patient misses most over the last 28 days (2+ misses).
+/// Ties: more misses, then a higher missed/total rate.
+async fn top_pattern(pool: &PgPool, patient_id: &str, now: DateTime<Utc>) -> sqlx::Result<Option<HotspotDto>> {
+    let p = insights::weekly_pattern(pool, patient_id, 28, now).await?;
+    let mut best: Option<HotspotDto> = None;
+    for (weekday, row) in p.cells.iter().enumerate() {
+        for (i, c) in row.iter().enumerate() {
+            if c.missed < 2 {
+                continue;
+            }
+            let better = best.as_ref().is_none_or(|b| {
+                c.missed > b.missed || (c.missed == b.missed && c.missed * b.total > b.missed * c.total)
+            });
+            if better {
+                best = Some(HotspotDto {
+                    weekday: weekday as u32,
+                    time_of_day: p.times[i].time_of_day.clone(),
+                    missed: c.missed,
+                    total: c.total,
+                });
+            }
+        }
+    }
+    Ok(best)
+}
+
+fn pattern_reason(h: &HotspotDto, now: DateTime<Utc>) -> String {
+    let at = format_time(time::from_manila(time::date_of(now), &h.time_of_day));
+    format!("Missed {} of the last {} {} {} doses", h.missed, h.total, WEEKDAYS[h.weekday as usize % 7], at)
 }
 
 /// Escapes LIKE wildcards in user search text.
@@ -81,6 +130,8 @@ pub async fn patient_rows(
             last_dose: last.map(|(t, status, label)| LastDoseDto { scheduled_for: iso(t), status, label }),
             away_now: dose_engine::is_away_now(pool, pid, now).await?,
             has_data: logged > 0,
+            // The last 28 of the 30 days already loaded, in four 7-day buckets.
+            spark: weekly_on_time(&s30.daily[s30.daily.len().saturating_sub(28)..]),
         });
     }
     Ok(out)
@@ -127,6 +178,10 @@ pub async fn patient_detail(
     .bind(&patient.id)
     .fetch_one(pool)
     .await?;
+    let device = sqlx::query_as::<_, BearDevice>("SELECT * FROM bear_devices WHERE patient_id = $1")
+        .bind(&patient.id)
+        .fetch_optional(pool)
+        .await?;
     Ok(ClinicPatientDetailDto {
         id: patient.id.clone(),
         full_name: patient.full_name.clone(),
@@ -141,8 +196,14 @@ pub async fn patient_detail(
         },
         family_contacts: contacts
             .iter()
-            .map(|c| NameRelationDto { name: c.name.clone(), relationship: c.relationship.clone() })
+            .map(|c| NameRelationDto {
+                name: c.name.clone(),
+                relationship: c.relationship.clone(),
+                receives_sms: c.receives_sms,
+            })
             .collect(),
+        // Device status only (id, battery, last seen). Never the device key.
+        device: device.as_ref().map(convert::device_dto),
         // Voice messages are family content — never shared with clinicians.
         schedules: schedules
             .iter()
@@ -240,6 +301,51 @@ pub async fn clinician_overview(pool: &PgPool, clinician: &User, now: DateTime<U
         std::iter::repeat_n(DoseStatus::parse(s).unwrap_or(DoseStatus::Upcoming), *n as usize)
     }));
 
+    let prev_counts: Vec<(String, i64)> = sqlx::query_as(
+        "SELECT status, count(*) FROM dose_events
+         WHERE patient_id = ANY($1) AND scheduled_for >= $2 AND scheduled_for < $3
+           AND status IN ('TAKEN', 'LATE', 'MISSED', 'AWAY')
+         GROUP BY status",
+    )
+    .bind(&ids)
+    .bind(time::start_of_day(time::add_days(today, -13)))
+    .bind(week_start)
+    .fetch_all(pool)
+    .await?;
+    let week_prev = summarize_adherence(prev_counts.iter().flat_map(|(s, n)| {
+        std::iter::repeat_n(DoseStatus::parse(s).unwrap_or(DoseStatus::Upcoming), *n as usize)
+    }));
+
+    // Six 7-day buckets ending today.
+    let trend_start = time::add_days(today, -41);
+    let trend_rows: Vec<(String, DateTime<Utc>)> = sqlx::query_as(
+        "SELECT status, scheduled_for FROM dose_events
+         WHERE patient_id = ANY($1) AND scheduled_for >= $2 AND scheduled_for <= $3
+           AND status IN ('TAKEN', 'LATE', 'MISSED', 'AWAY')",
+    )
+    .bind(&ids)
+    .bind(time::start_of_day(trend_start))
+    .bind(now)
+    .fetch_all(pool)
+    .await?;
+    let weekly: Vec<WeekPointDto> = (0..6)
+        .map(|i| {
+            let from = time::add_days(trend_start, i * 7);
+            let to = time::add_days(from, 6);
+            let counts = summarize_adherence(trend_rows.iter().filter_map(|(s, t)| {
+                let d = time::date_of(*t);
+                (d >= from && d <= to).then(|| DoseStatus::parse(s)).flatten()
+            }));
+            WeekPointDto {
+                from: time::key(from),
+                to: time::key(to),
+                on_time_pct: counts.on_time_pct,
+                adherence_pct: counts.adherence_pct,
+                counted: counts.counted,
+            }
+        })
+        .collect();
+
     let today_counts: Vec<(String, i64)> = sqlx::query_as(
         "SELECT status, count(*) FROM dose_events
          WHERE patient_id = ANY($1) AND scheduled_for >= $2 AND scheduled_for < $3
@@ -261,27 +367,36 @@ pub async fn clinician_overview(pool: &PgPool, clinician: &User, now: DateTime<U
         }
     }
 
-    let mut needs_attention: Vec<AttentionDto> = rows
-        .iter()
-        .filter(|r| r.has_data && !r.away_now)
-        .filter_map(|r| {
-            let mut reasons = Vec::new();
-            if r.missed7 >= 2 {
-                reasons.push(format!("{} missed doses in the last 7 days", r.missed7));
-            }
-            if let Some(p) = r.on_time_pct7.filter(|p| *p < 70) {
-                reasons.push(format!("only {p}% on time this week"));
-            }
-            (!reasons.is_empty()).then(|| AttentionDto {
+    // A patient needs a conversation with 2+ misses this week, under 70% on time this
+    // week, or one weekday × dose time missed 3+ times in the last 28 days.
+    let mut needs_attention: Vec<AttentionDto> = Vec::new();
+    for r in rows.iter().filter(|r| r.has_data && !r.away_now) {
+        let pattern = top_pattern(pool, &r.id, now).await?;
+        let mut reasons = Vec::new();
+        if let Some(h) = &pattern {
+            reasons.push(pattern_reason(h, now));
+        }
+        if r.missed7 >= 2 {
+            reasons.push(format!("{} missed doses in the last 7 days", r.missed7));
+        }
+        if let Some(p) = r.on_time_pct7.filter(|p| *p < 70) {
+            reasons.push(format!("only {p}% on time this week"));
+        }
+        let flagged = r.missed7 >= 2
+            || r.on_time_pct7.is_some_and(|p| p < 70)
+            || pattern.as_ref().is_some_and(|h| h.missed >= 3);
+        if flagged {
+            needs_attention.push(AttentionDto {
                 id: r.id.clone(),
                 full_name: r.full_name.clone(),
                 nickname: r.nickname.clone(),
                 missed7: r.missed7,
                 on_time_pct7: r.on_time_pct7,
                 reasons,
-            })
-        })
-        .collect();
+                top_pattern: pattern,
+            });
+        }
+    }
     needs_attention.sort_by(|a, b| b.missed7.cmp(&a.missed7).then(a.on_time_pct7.cmp(&b.on_time_pct7)));
 
     let recent: Vec<(String, String, String, DateTime<Utc>, String)> = sqlx::query_as(
@@ -302,6 +417,8 @@ pub async fn clinician_overview(pool: &PgPool, clinician: &User, now: DateTime<U
         with_data: rows.iter().filter(|r| r.has_data).count() as i64,
         away_now: rows.iter().filter(|r| r.away_now).count() as i64,
         week,
+        week_prev,
+        weekly,
         today: today_dto,
         needs_attention,
         recent_missed: recent
@@ -392,7 +509,7 @@ pub async fn admin_overview(pool: &PgPool, admin: &User, now: DateTime<Utc>) -> 
         active_consents,
         consenting_patients,
         views7: count(&["VIEW_PATIENT"]),
-        exports7: count(&["EXPORT_CSV", "EXPORT_PDF"]),
+        exports7: count(&["EXPORT_CSV", "EXPORT_PDF", "PRINT_CHECKUP"]),
         consent_changes7: count(&["CONSENT_GRANT", "CONSENT_REVOKE"]),
         corrections7: count(&["CORRECT_LOG"]),
         recent_activity: clinic_audit(pool, &clinic, None, 6).await?,

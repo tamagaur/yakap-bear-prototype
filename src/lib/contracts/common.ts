@@ -9,6 +9,7 @@ export const AuditActionSchema = z.enum([
   "VIEW_PATIENT",
   "EXPORT_CSV",
   "EXPORT_PDF",
+  "PRINT_CHECKUP",
   "CORRECT_LOG",
   "CONSENT_GRANT",
   "CONSENT_REVOKE",

@@ -239,9 +239,12 @@ async fn export_pdf(
     Path(patient_id): Path<String>,
     ApiJson(b): ApiJson<PdfBody>,
 ) -> ApiResult<Json<Value>> {
-    if b.format != "pdf" {
-        return Err(ApiError::validation("format", "Only pdf is supported here (CSV uses export.csv)"));
-    }
+    // "pdf" = browser-built PDF of the dose log; "print" = the one-page check-up sheet.
+    let (action, format) = match b.format.as_str() {
+        "pdf" => ("EXPORT_PDF", "pdf"),
+        "print" => ("PRINT_CHECKUP", "print"),
+        _ => return Err(ApiError::validation("format", "Use pdf or print (CSV uses export.csv)")),
+    };
     let (patient, consent) = require_clinician_patient(&st, &user, &patient_id).await?;
     let now = clock::now(&st.pool).await?;
     let r = parse_range(b.from.as_deref(), b.to.as_deref(), now)?;
@@ -251,10 +254,10 @@ async fn export_pdf(
         &mut *st.pool.acquire().await?,
         AuditEntry {
             actor: Some(&user),
-            action: "EXPORT_PDF",
+            action,
             patient_id: Some(&patient_id),
             clinic_name: user.clinic_name.as_deref(),
-            details: json!({ "format": "pdf", "from": time::key(r.from), "to": time::key(r.to), "rows": rows.len() }),
+            details: json!({ "format": format, "from": time::key(r.from), "to": time::key(r.to), "rows": rows.len() }),
             sim_time: now,
         },
     )
@@ -277,7 +280,7 @@ struct AuditQuery {
 }
 
 const AUDIT_ACTIONS: &[&str] =
-    &["VIEW_PATIENT", "EXPORT_CSV", "EXPORT_PDF", "CORRECT_LOG", "CONSENT_GRANT", "CONSENT_REVOKE"];
+    &["VIEW_PATIENT", "EXPORT_CSV", "EXPORT_PDF", "PRINT_CHECKUP", "CORRECT_LOG", "CONSENT_GRANT", "CONSENT_REVOKE"];
 
 /// Clinic admins only: this clinic's views/exports, consent changes involving
 /// its clinicians, and family corrections on patients who consented to it.

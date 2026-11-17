@@ -4,7 +4,7 @@
 
 use std::collections::{BTreeMap, HashMap};
 
-use chrono::{DateTime, Duration, Utc};
+use chrono::{DateTime, Datelike, Duration, Utc};
 use serde::Serialize;
 use serde_json::json;
 use sqlx::{PgPool, Postgres, QueryBuilder};
@@ -161,6 +161,27 @@ pub async fn reset_demo(pool: &PgPool, cfg: &Config, sim_now: Option<DateTime<Ut
             forced.insert((time::add_days(today, -1), "20:00"), Outcome::Missed);
             let corr_date = time::add_days(today, -CORRECTION.days_ago);
             forced.insert((corr_date, CORRECTION.time_of_day), Outcome::Missed);
+            // Scripted pattern (D11): Lola Rosa misses most Sunday evenings, so "most often
+            // missed: Sunday 8:00 PM" is the same after every reset. Of the last four
+            // Sundays three are missed (the corrected dose, if it falls on one, is the
+            // exception); the two before that are one missed, one taken.
+            let sundays: Vec<_> = (1..=p.history_days)
+                .map(|d| time::add_days(today, -d))
+                .filter(|d| d.weekday().num_days_from_sunday() == 0)
+                .collect();
+            let last4 = &sundays[..sundays.len().min(4)];
+            let spared = if last4.contains(&corr_date) { None } else { last4.last().copied() };
+            for (i, d) in sundays.iter().enumerate() {
+                if *d == corr_date {
+                    continue;
+                }
+                let outcome = match i {
+                    0..=3 if Some(*d) == spared => Outcome::Taken,
+                    0..=4 => Outcome::Missed,
+                    _ => Outcome::Taken,
+                };
+                forced.insert((*d, "20:00"), outcome);
+            }
             correction = Some(CorrectionSpec {
                 date: corr_date,
                 time_of_day: CORRECTION.time_of_day,
@@ -178,6 +199,7 @@ pub async fn reset_demo(pool: &PgPool, cfg: &Config, sim_now: Option<DateTime<Ut
             window_minutes: DEFAULT_WINDOW_MINUTES,
             late_minutes: DEFAULT_LATE_MINUTES,
             forced,
+            miss_cap: (p.key == CORRECTION.patient_key).then_some(1),
             correction,
         });
         all.events.extend(rows.events);

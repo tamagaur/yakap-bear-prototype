@@ -6,7 +6,7 @@ import type { BearMood, LedColor } from "@/components/bear/bear-figure";
 import { ApiClientError, apiFetch, errorMessage, fetcher } from "@/lib/api-client";
 import { playSound, playVoice, unlockAudio } from "@/lib/bear-audio";
 import { decideOffline, newClientEventId, type QueuedHold } from "@/lib/bear-offline";
-import type { BearStateDTO, HeartbeatResultDTO, HoldResultDTO, ReminderResultDTO, SyncResultDTO } from "@/lib/contracts/bear";
+import type { BearDoseDTO, BearStateDTO, HeartbeatResultDTO, HoldResultDTO, ReminderResultDTO, SyncResultDTO } from "@/lib/contracts/bear";
 import type { AttemptReasonT } from "@/lib/contracts/common";
 import type { ClockAction, ClockActionResultDTO, DemoDeviceDTO } from "@/lib/contracts/demo";
 import { LOW_BATTERY_PCT } from "@/lib/dose-rules";
@@ -22,6 +22,8 @@ export interface ConsoleEntry {
 }
 interface Feedback {
   mood: BearMood;
+  /** Small label above the message, e.g. "Dose logged". */
+  kicker?: string;
   text: string;
   sub?: string;
   flash?: "success" | "reject";
@@ -50,14 +52,27 @@ function writeJSON(key: string, v: unknown) {
   }
 }
 
-const REJECT_TEXT: Record<AttemptReasonT, (next?: string) => { text: string; sub?: string }> = {
-  TOO_SHORT: () => ({ text: "Hold my paw for 3 whole seconds to record your dose.", sub: "A quick squeeze doesn't count — that keeps accidents out of your log." }),
-  OUTSIDE_WINDOW: (next) => ({ text: "It's not dose time right now.", sub: next ? `Your next dose is at ${next}.` : undefined }),
-  ALREADY_LOGGED: () => ({ text: "Already recorded — one hold per dose time is enough.", sub: "Even if you take several pills, it's still one hold." }),
-  AWAY: () => ({ text: "Away mode is on — I'm not recording doses right now." }),
+const REJECT_TEXT: Record<AttemptReasonT, (next?: string) => { kicker: string; text: string; sub?: string }> = {
+  TOO_SHORT: () => ({ kicker: "Not logged yet", text: "Almost there!", sub: "Hold my paw for 3 whole seconds." }),
+  OUTSIDE_WINDOW: (next) => ({
+    kicker: "Not dose time",
+    text: "It's not dose time right now.",
+    sub: next ? `Your next dose is at ${next}.` : undefined,
+  }),
+  ALREADY_LOGGED: () => ({
+    kicker: "One check-in per dose",
+    text: "Already recorded",
+    sub: "One hold per dose time is enough, even with several pills.",
+  }),
+  AWAY: () => ({ kicker: "Away mode", text: "Away mode is on. I'm not recording doses right now." }),
 };
 
-export function useBearDevice() {
+/** First name of whoever recorded a voice message, or null for the sample chime. */
+function recordedBy(v: BearDoseDTO["voice"]) {
+  return v && !v.isSample && v.recordedByName ? v.recordedByName.split(" ")[0] : null;
+}
+
+export function useBearDevice(opts: { startOffline?: boolean } = {}) {
   const { mutate: globalMutate } = useSWRConfig();
   const [selectedId, setSelectedId] = useState("BEAR-0001");
   const [queue, setQueue] = useState<QueuedHold[]>([]);
@@ -93,6 +108,8 @@ export function useBearDevice() {
   const headers = useMemo(() => (device ? { "x-bear-key": device.deviceKey } : undefined), [device]);
 
   const [online, setOnline] = useState(true);
+  // Offline scenario: connect once so the bear knows its schedule, then drop Wi-Fi.
+  const offlineAfterSync = useRef(!!opts.startOffline);
   const [audio, setAudio] = useState<AudioMode>("locked");
   const [speaking, setSpeaking] = useState(false);
   const [feedback, setFeedback] = useState<Feedback | null>(null);
@@ -124,6 +141,21 @@ export function useBearDevice() {
         writeJSON(STATE_KEY(s.device.id), c);
         // Battery starts from the server value, then the presenter controls it.
         setBattery((b) => b ?? s.device.batteryPct);
+        if (offlineAfterSync.current) {
+          offlineAfterSync.current = false;
+          setOnline(false);
+          setLog((l) =>
+            [
+              {
+                id: newClientEventId(),
+                simAt: s.now,
+                kind: "warn" as const,
+                text: "Offline scenario: Wi-Fi switched off. The bear now works from its memory.",
+              },
+              ...l,
+            ].slice(0, 80),
+          );
+        }
       },
     },
   );
@@ -197,7 +229,12 @@ export function useBearDevice() {
     prevBattery.current = battery;
     if (prev !== null && prev > LOW_BATTERY_PCT && battery <= LOW_BATTERY_PCT) {
       playSound("lowBattery");
-      show({ mood: "sleepy", text: "My battery is low — please charge me soon.", sub: "Your family app has been notified." });
+      show({
+        mood: "sleepy",
+        kicker: "Low battery",
+        text: "I need a little rest",
+        sub: "Battery is low. Please plug me in tonight. The family app has been told.",
+      });
     }
   }, [battery, show]);
 
@@ -274,11 +311,16 @@ export function useBearDevice() {
           `${secs} s hold → ${r.duplicate ? "Already recorded" : "Accepted"}: ${r.status}${when ? ` (${when} dose)` : ""}`,
         );
         playSound("success");
+        const label = refs.current.state?.doses.find((d) => d.doseId === r.doseId)?.label.toLowerCase() ?? when ?? "";
         show({
           mood: "happy",
           flash: "success",
-          text: r.status === "LATE" ? `Recorded as taken late. Salamat, ${nick}!` : `Salamat, ${nick}! Your ${when ?? ""} dose is recorded.`,
-          sub: "Your family app shows it right away.",
+          kicker: r.duplicate ? "One check-in per dose" : "Dose logged",
+          text: `Salamat, ${nick}!`,
+          sub:
+            r.status === "LATE"
+              ? `Your ${label} dose was logged as taken late.`
+              : `Your ${label} dose was logged on time.`,
         });
       } else {
         const reason = (r.reason ?? "OUTSIDE_WINDOW") as AttemptReasonT;
@@ -314,7 +356,13 @@ export function useBearDevice() {
         ]);
         addLog("sync", `${secs} s hold → Saved on the bear (offline) for the ${formatTime(d.dose.scheduledFor)} dose — will sync on reconnect`);
         playSound("success");
-        show({ mood: "happy", flash: "success", text: `Saved, ${nick}! I'll tell your family once I'm back online.`, sub: "Offline dose memory" });
+        show({
+          mood: "happy",
+          flash: "success",
+          kicker: "Saved offline",
+          text: "Saved safely in my memory",
+          sub: `I'll send this check-in when Wi-Fi returns, ${nick}.`,
+        });
       } else {
         addLog("reject", `${secs} s hold → Ignored offline: ${d.reason} (${REASON_LABEL[d.reason]})`);
         playSound("ignored");
@@ -371,7 +419,12 @@ export function useBearDevice() {
         const done = new Set(r.results.map((x) => x.clientEventId));
         setQueue((cur) => cur.filter((x) => !done.has(x.clientEventId)));
         playSound("sync");
-        show({ mood: "happy", text: "I'm back online — your saved doses are synced.", sub: "No duplicates: each hold is sent once." });
+        show({
+          mood: "happy",
+          kicker: "Back online",
+          text: "Your saved check-ins are synced.",
+          sub: "No duplicates: each hold is sent once.",
+        });
         mutate();
       })
       .catch((e) => addLog("warn", `Sync failed, will retry: ${errorMessage(e)}`))
@@ -403,6 +456,20 @@ export function useBearDevice() {
     [addLog, mutate, globalMutate],
   );
 
+  /** "Before dose": rebuild the demo data and put the clock back at 7:45 PM. */
+  const resetDemo = useCallback(async () => {
+    try {
+      await apiFetch("/api/demo/reset", { json: {} });
+      setQueue([]);
+      setBattery(null);
+      setFeedback(null);
+      addLog("info", "Demo reset: clock back to 7:45 PM, before the evening dose");
+      await Promise.all([mutate(), globalMutate("/api/demo/clock")]);
+    } catch (e) {
+      addLog("warn", errorMessage(e));
+    }
+  }, [addLog, mutate, globalMutate]);
+
   const selectDevice = useCallback(
     (id: string) => {
       setSelectedId(id);
@@ -429,8 +496,17 @@ export function useBearDevice() {
     let mood: BearMood = "idle";
     let bubble = "Waking up…";
     let sub: string | undefined;
+    let kicker: string | undefined;
     if (feedback && feedback.until > tick) {
-      return { led, mood: feedback.mood, bubble: feedback.text, sub: feedback.sub, flash: feedback.flash ?? null };
+      return {
+        led: feedback.flash === "success" && connection === "online" && !low ? ("green" as LedColor) : led,
+        mood: feedback.mood,
+        kicker: feedback.kicker,
+        bubble: feedback.text,
+        sub: feedback.sub,
+        flash: feedback.flash ?? null,
+        due,
+      };
     }
     if (state) {
       const next = state.nextDose;
@@ -439,30 +515,41 @@ export function useBearDevice() {
         bubble = "Away mode is on — no reminders until you're back.";
       } else if (due) {
         mood = "reminder";
-        bubble = `${nickname}, it's time for your ${formatTime(active!.scheduledFor)} medicine.`;
-        sub = active!.pillNote
-          ? `${active!.pillNote} = 1 paw hold. Hold my paw after you take them.`
-          : "Hold my paw for 3 seconds after you take it.";
+        const v = active!.voice;
+        const who = recordedBy(v);
+        kicker = speaking ? (who ? `${who}'s voice is playing` : "Reminder chime is playing") : "Dose time";
+        bubble =
+          v && !v.isSample ? `“${v.title}”` : `${nickname}, it's time for your ${formatTime(active!.scheduledFor)} medicine.`;
+        sub = "Press and hold my paw after taking the dose.";
       } else if (open) {
-        bubble = `Your ${formatTime(active!.scheduledFor)} dose window is open.`;
-        sub = "Hold my paw for 3 seconds after you take your medicine.";
+        kicker = "Dose window open";
+        bubble = `Your ${formatTime(active!.scheduledFor)} dose can be logged now.`;
+        sub = "A gentle 3-second hold logs this dose.";
       } else if (active && (active.status === "TAKEN" || active.status === "LATE")) {
-        bubble = `Your ${formatTime(active.scheduledFor)} dose is recorded. Salamat!`;
-        sub = next ? `Next: ${next.label} at ${formatTime(next.scheduledFor)}.` : undefined;
+        kicker = "One check-in per dose";
+        bubble = "Already recorded";
+        sub = `This dose was logged at ${formatTime(active.takenAt ?? active.scheduledFor)}. One check-in per dose.`;
       } else if (next) {
-        bubble = `Hi ${nickname}! Your next dose is at ${formatTime(next.scheduledFor)}.`;
-        sub = `${next.label}${next.pillNote ? ` · ${next.pillNote}` : ""}`;
+        const who = recordedBy(next.voice);
+        bubble = `Next reminder at ${formatTime(next.scheduledFor)}`;
+        sub = who ? `I'll light up and play ${who}'s message.` : "I'll light up and play the reminder chime.";
       } else {
         bubble = `Hi ${nickname}! No doses scheduled yet.`;
       }
       if (connection !== "online") {
-        sub = open ? "I'm offline, but I still remember this dose." : "I'm offline — I'll keep your doses safe until I reconnect.";
-      } else if (low) {
-        sub = "My battery is low — please charge me soon.";
+        kicker = "Offline";
+        sub = open ? "I'm offline, but I still remember this dose." : "I'm offline. I'll keep check-ins safe until Wi-Fi returns.";
+      } else if (low && !state.away) {
+        if (!open) {
+          mood = "sleepy";
+          kicker = "Low battery";
+          bubble = "I need a little rest";
+        }
+        sub = "Battery is low. Please plug me in tonight.";
       }
     }
-    return { led, mood, bubble, sub, flash: null as Feedback["flash"] | null };
-  }, [state, simNow, connection, battery, feedback, tick, nickname]);
+    return { led, mood, kicker, bubble, sub, flash: null as Feedback["flash"] | null, due };
+  }, [state, simNow, connection, battery, feedback, tick, nickname, speaking]);
 
   return {
     devices,
@@ -490,6 +577,7 @@ export function useBearDevice() {
     queue,
     submitHold,
     clockAction,
+    resetDemo,
     view,
     shakeKey,
   };

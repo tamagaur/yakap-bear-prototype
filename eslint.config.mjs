@@ -12,6 +12,10 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Local-only material: database cluster, logs, design reference files.
+    ".local/**",
+    // Rust build output.
+    "backend/target/**",
   ]),
 ]);
 

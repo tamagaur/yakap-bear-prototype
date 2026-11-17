@@ -92,6 +92,7 @@ fn summarize(action: &str, d: &Value) -> String {
         "VIEW_PATIENT" => "Viewed the dose log".into(),
         "EXPORT_CSV" => "Exported the dose log (CSV)".into(),
         "EXPORT_PDF" => "Exported the dose log (PDF)".into(),
+        "PRINT_CHECKUP" => "Printed a check-up sheet".into(),
         "CONSENT_GRANT" => format!("Gave consent to {}", s("clinician")),
         "CONSENT_REVOKE" => format!("Revoked consent for {}", s("clinician")),
         "CORRECT_LOG" => {
