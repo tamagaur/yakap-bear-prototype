@@ -3,16 +3,24 @@
 import clsx from "clsx";
 import {
   ArrowRight,
+  BatteryMedium,
+  ChevronRight,
   ClipboardList,
   Clock3,
+  FastForward,
   Hospital,
+  MessageSquareText,
   Play,
   RotateCcw,
+  SkipForward,
   Square,
+  TriangleAlert,
   Users,
+  Wifi,
+  WifiOff,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useState, type ReactNode } from "react";
+import { useCallback, useState, type ReactNode } from "react";
 import useSWR, { useSWRConfig } from "swr";
 import { BearMark } from "@/components/shared/logo";
 import { Button, buttonClasses } from "@/components/ui/button";
@@ -31,7 +39,7 @@ import {
   type DemoOverviewDTO,
   type ResetResultDTO,
 } from "@/lib/contracts/demo";
-import { FAMILY_APP_READY } from "@/lib/features";
+import { CHECKUP_TAB, FAMILY_APP_READY } from "@/lib/features";
 import { WEEKDAYS, formatTime, manilaWeekday } from "@/lib/time";
 
 const DEVICE_ID = "BEAR-0001";
@@ -372,6 +380,312 @@ export function HeroActions() {
           {error}
         </p>
       )}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ live strip */
+
+type MetricTone = "plain" | "good" | "battery" | "alert";
+const METRIC: Record<MetricTone, { icon: string; value: string }> = {
+  plain: { icon: "text-[#ead7cb]", value: "text-white" },
+  good: { icon: "text-[#ead7cb]", value: "text-[#9be0b7]" },
+  battery: { icon: "text-[#f1c367]", value: "text-[#f1c367]" },
+  alert: { icon: "text-[#f0a37d]", value: "text-[#f0a37d]" },
+};
+
+function Metric({
+  icon,
+  label,
+  tone = "plain",
+  loading,
+  highlight,
+  children,
+}: {
+  icon: ReactNode;
+  label: string;
+  tone?: MetricTone;
+  loading?: boolean;
+  /** Draws the eye with a small pulsing dot (e.g. open alerts). */
+  highlight?: boolean;
+  children: ReactNode;
+}) {
+  const m = METRIC[tone];
+  return (
+    <div className="flex min-h-[54px] min-w-0 items-center gap-2.5 tablet:border-r tablet:border-white/[0.13] tablet:px-[18px]">
+      <span
+        className={clsx("relative grid size-[38px] shrink-0 place-items-center rounded-xl bg-white/[0.08]", m.icon)}
+        aria-hidden
+      >
+        {icon}
+        {highlight && (
+          <span className="absolute -top-0.5 -right-0.5 size-2 rounded-full bg-[#f0a37d]">
+            <span className="absolute inset-0 animate-ping-soft rounded-full bg-[#f0a37d]" />
+          </span>
+        )}
+      </span>
+      <div className="min-w-0">
+        <p className="text-[11px] font-semibold tracking-[0.1em] text-[#bcb0aa] uppercase">{label}</p>
+        {loading ? (
+          <Skeleton dark className="mt-1.5 h-4 w-16 rounded-md" />
+        ) : (
+          <p className={clsx("mt-0.5 truncate text-body-lg font-bold", m.value)}>{children}</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** "Ana and Ben", "Ana, Ben and Carl". */
+function nameList(names: string[]) {
+  const first = names.map(firstName);
+  return first.length <= 1 ? (first[0] ?? "") : `${first.slice(0, -1).join(", ")} and ${first[first.length - 1]}`;
+}
+
+/** Live status of the demo: bear, battery, next dose, open alerts, latest simulated text. */
+export function LiveStrip() {
+  const { data, error } = useDemoOverview();
+  const d = data?.device;
+  const text = data?.latestText;
+  const loading = !data && !error;
+  return (
+    <section
+      id="live"
+      aria-label="Live demo status"
+      className="scroll-mt-28 rounded-panel bg-[linear-gradient(135deg,#3d2b25,#30211d)] p-4 text-white shadow-[0_24px_60px_rgba(61,43,37,0.2)] tablet:p-[22px]"
+    >
+      <div className="grid grid-cols-2 gap-x-4 gap-y-4 tablet:grid-cols-[1.05fr_repeat(4,0.8fr)] tablet:items-center tablet:gap-x-0">
+        <div className="col-span-2 flex min-h-[54px] items-center gap-3 tablet:col-span-1 tablet:border-r tablet:border-white/[0.13] tablet:px-[18px]">
+          <span className="relative flex size-[9px] shrink-0" aria-hidden>
+            {!error && <span className="absolute inset-0 animate-ping-soft rounded-full bg-[#7dcb9b]" />}
+            <span className={clsx("relative size-[9px] rounded-full", error ? "bg-missed" : "bg-[#7dcb9b] shadow-online-ring")} />
+          </span>
+          <div>
+            <p className="text-body-lg font-extrabold tracking-wide">LIVE DEMO</p>
+            <p className="text-[11px] text-[#bcb0aa]">
+              {error
+                ? "The Yakap API isn't reachable"
+                : !data
+                  ? "Connecting…"
+                  : d?.online
+                    ? "Everything is connected"
+                    : "Open the bear to bring it online"}
+            </p>
+          </div>
+        </div>
+        <Metric
+          icon={d?.online ? <Wifi className="size-5" /> : <WifiOff className="size-5" />}
+          label="Bear"
+          tone={d?.online ? "good" : "plain"}
+          loading={loading}
+        >
+          {data ? (d?.online ? "Online" : "Offline") : "—"}
+        </Metric>
+        <Metric
+          icon={<BatteryMedium className="size-5" />}
+          label="Battery"
+          tone={d?.lowBattery ? "alert" : "battery"}
+          loading={loading}
+          highlight={d?.lowBattery}
+        >
+          {d ? `${d.batteryPct}%${d.lowBattery ? " · low" : ""}` : "—"}
+        </Metric>
+        <Metric icon={<Clock3 className="size-5" />} label="Next dose" loading={loading}>
+          {data ? (data.nextDose ? formatTime(data.nextDose.scheduledFor) : "None scheduled") : "—"}
+        </Metric>
+        <Metric
+          icon={<TriangleAlert className="size-5" />}
+          label="Open alerts"
+          tone={data?.openAlerts ? "alert" : "plain"}
+          loading={loading}
+          highlight={!!data?.openAlerts}
+        >
+          {data ? (data.openAlerts === 0 ? "None" : `${data.openAlerts} alert${data.openAlerts === 1 ? "" : "s"}`) : "—"}
+        </Metric>
+
+        <div className="col-span-2 flex items-start gap-2.5 border-t border-white/[0.13] pt-[18px] tablet:col-span-5 tablet:px-[18px]">
+          <span className="grid size-[38px] shrink-0 place-items-center rounded-xl bg-white/[0.08] text-[#ead7cb]" aria-hidden>
+            <MessageSquareText className="size-5" />
+          </span>
+          <div className="min-w-0">
+            <p className="text-[11px] font-semibold tracking-[0.1em] text-[#bcb0aa] uppercase">Latest simulated text</p>
+            {loading ? (
+              <div className="mt-1.5 space-y-2">
+                <Skeleton dark className="h-4 w-[min(60vw,520px)] rounded-md" />
+                <Skeleton dark className="h-3 w-48 rounded-md" />
+              </div>
+            ) : !data ? (
+              <p className="mt-0.5 text-body-lg font-bold">Not available</p>
+            ) : text ? (
+              <>
+                <p className="mt-0.5 line-clamp-2 text-body-lg font-bold">“{text.body}”</p>
+                <p className="mt-1 text-body-sm text-[#bcb0aa]">
+                  Sent to {nameList(text.recipients.length ? text.recipients : [text.toName])} ·{" "}
+                  {WEEKDAYS[manilaWeekday(text.createdAt)]}, {formatTime(text.createdAt)} · simulated, never really sent
+                </p>
+              </>
+            ) : (
+              <p className="mt-0.5 text-body-lg font-bold">No texts yet</p>
+            )}
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ------------------------------------------------------------------ journeys + demo tools */
+
+type Journey = { title: string; body: string; run: () => Promise<string | void> };
+
+/** Guided demo paths. Journeys 1–3 start from a fresh demo so they always play the same. */
+export function Journeys() {
+  const router = useRouter();
+  const { data } = useDemoOverview();
+  const { mutate } = useSWRConfig();
+  const { demoMode, refresh } = useSimClock(5000);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [message, setMessage] = useState<{ tone: "success" | "error"; text: string } | null>(null);
+
+  const refreshAll = useCallback(async () => {
+    await refresh();
+    await mutate(() => true, undefined, { revalidate: true });
+  }, [refresh, mutate]);
+
+  const run = async (key: string, fn: () => Promise<string | void>) => {
+    setBusy(key);
+    setMessage(null);
+    try {
+      const text = await fn();
+      await refreshAll();
+      if (text) setMessage({ tone: "success", text });
+    } catch (e) {
+      setMessage({ tone: "error", text: errorMessage(e) });
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const nextDose = () => clockAction({ action: "next-dose", deviceId: DEVICE_ID });
+  const journeys: Journey[] = [
+    {
+      title: "A dose on time",
+      body: "Hear the family's voice, then hold the paw.",
+      run: async () => {
+        await resetDemo();
+        await nextDose();
+        router.push("/bear");
+      },
+    },
+    {
+      title: "A missed dose",
+      body: "See the family's simulated text.",
+      run: async () => {
+        await resetDemo();
+        await nextDose();
+        await clockAction({ action: "past-window", deviceId: DEVICE_ID });
+        if (FAMILY_APP_READY) {
+          await signIn(ACCOUNTS.family, "family");
+          router.push("/family/alerts");
+          return;
+        }
+        document.getElementById("live")?.scrollIntoView({ behavior: "smooth", block: "center" });
+        return "The dose window closed with no check-in. The family's simulated text is in the live strip above.";
+      },
+    },
+    {
+      title: "Offline memory",
+      body: "Save a dose, then reconnect.",
+      run: async () => {
+        await resetDemo();
+        await nextDose();
+        router.push("/bear?scenario=offline");
+      },
+    },
+    {
+      title: "The check-up",
+      body: "Turn patterns into a conversation.",
+      run: async () => {
+        await signIn(ACCOUNTS.clinician, "clinic");
+        router.push(`/clinic/patients/${data?.patient.id ?? "pat_rosa"}?tab=${CHECKUP_TAB}`);
+      },
+    },
+  ];
+
+  const tools: { key: string; label: string; icon: ReactNode; action: object }[] = [
+    { key: "t1", label: "+1 hour", icon: <FastForward className="size-4" aria-hidden />, action: { action: "advance", minutes: 60 } },
+    { key: "t2", label: "Next dose", icon: <SkipForward className="size-4" aria-hidden />, action: { action: "next-dose", deviceId: DEVICE_ID } },
+    { key: "t3", label: "Past window", icon: <TriangleAlert className="size-4" aria-hidden />, action: { action: "past-window", deviceId: DEVICE_ID } },
+  ];
+
+  return (
+    <div className="grid gap-10 tablet:grid-cols-[0.9fr_1.1fr] tablet:gap-16">
+      <Reveal from="left">
+        <p className="eyebrow text-cocoa-700">Guided journeys</p>
+        <h2 className="mt-3 text-title font-bold text-cocoa tablet:text-section">
+          Four stories,
+          <br />
+          one connected care circle.
+        </h2>
+        <p className="mt-4 max-w-sm text-body-lg text-muted">
+          Follow a short path through the prototype or explore freely by role. The first three start from a fresh demo.
+        </p>
+        <p className="mt-7 text-body-sm font-bold text-cocoa">Demo tools</p>
+        <div className="mt-2.5 flex flex-wrap gap-2">
+          {tools.map((t) => (
+            <Button
+              key={t.key}
+              variant="secondary"
+              size="sm"
+              icon={t.icon}
+              loading={busy === t.key}
+              disabled={!demoMode || (busy !== null && busy !== t.key)}
+              onClick={() => run(t.key, async () => (await clockAction(t.action)).message)}
+            >
+              {t.label}
+            </Button>
+          ))}
+        </div>
+        <div className="mt-3 min-h-6" role="status" aria-live="polite">
+          {message && (
+            <p className={clsx("text-body font-semibold", message.tone === "error" ? "text-missed-ink" : "text-taken-ink")}>
+              {message.text}
+            </p>
+          )}
+        </div>
+      </Reveal>
+      <ol className="grid gap-3">
+        {journeys.map((j, i) => {
+          const key = `j${i}`;
+          return (
+            <Reveal as="li" key={j.title} delay={i * 90} from="right">
+              <button
+                type="button"
+                onClick={() => run(key, j.run)}
+                disabled={busy !== null || !demoMode}
+                aria-busy={busy === key || undefined}
+                className="motion-lift group flex w-full items-center gap-5 rounded-soft border border-line bg-white px-5 py-4 text-left shadow-card transition-[transform,box-shadow] duration-300 ease-out-expo hover:-translate-y-1 hover:shadow-card-hover active:scale-[0.99] disabled:opacity-60 disabled:hover:translate-y-0"
+              >
+                <span className="tabular w-7 shrink-0 text-body-lg font-bold text-honey-dark" aria-hidden>
+                  {String(i + 1).padStart(2, "0")}
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="font-display block text-[17px] font-bold text-cocoa">{j.title}</span>
+                  <span className="mt-0.5 block text-body text-muted">{j.body}</span>
+                </span>
+                {busy === key ? (
+                  <Spinner className="size-5 shrink-0" />
+                ) : (
+                  <ChevronRight
+                    className="size-5 shrink-0 text-cocoa transition-transform duration-300 ease-out-expo group-hover:translate-x-1"
+                    aria-hidden
+                  />
+                )}
+              </button>
+            </Reveal>
+          );
+        })}
+      </ol>
     </div>
   );
 }

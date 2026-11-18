@@ -1,7 +1,7 @@
 "use client";
 
 import clsx from "clsx";
-import { ChevronRight, Search, ShieldCheck } from "lucide-react";
+import { ArrowDownRight, ArrowRight, ArrowUpRight, ChevronRight, Search, ShieldCheck } from "lucide-react";
 import Link from "next/link";
 import { Suspense, useEffect, useState } from "react";
 import useSWR from "swr";
@@ -35,6 +35,54 @@ function Bar({ value }: { value: number | null }) {
         />
       </div>
       <span className={clsx("w-10 text-sm font-extrabold tabular", pctTone(value))}>{value === null ? "—" : `${value}%`}</span>
+    </div>
+  );
+}
+
+/** 4-week mini sparkline of weekly on-time percentages (oldest → newest). */
+function Sparkline({ spark }: { spark: (number | null)[] }) {
+  const valid = spark.filter((v): v is number => v !== null);
+  if (valid.length === 0) return <span className="text-cocoa-400">—</span>;
+
+  const first = valid[0];
+  const last = valid[valid.length - 1];
+  const diff = valid.length >= 2 ? last - first : 0;
+  const label = `4-week on-time trend (oldest to newest): ${spark.map((v) => (v === null ? "no data" : `${v}%`)).join(" → ")}`;
+
+  return (
+    <div className="inline-flex items-center gap-2.5" title={label} aria-label={label} role="img">
+      <div className="flex h-7 items-end gap-1 rounded-lg bg-cream-100/80 px-1.5 py-1 ring-1 ring-cocoa-100" aria-hidden>
+        {spark.map((v, idx) => {
+          const h = v === null ? 4 : Math.max(5, Math.round((v / 100) * 20));
+          const tone =
+            v === null ? "bg-cocoa-200" : v >= 85 ? "bg-taken" : v >= 65 ? "bg-late" : "bg-missed";
+          return (
+            <span
+              key={idx}
+              className={clsx("w-2 rounded-t-[3px] transition-all", tone, idx === spark.length - 1 && "ring-1 ring-cocoa-900/15")}
+              style={{ height: `${h}px` }}
+            />
+          );
+        })}
+      </div>
+      {valid.length >= 2 && (
+        <span
+          className={clsx(
+            "inline-flex items-center gap-0.5 text-xs font-extrabold tabular",
+            diff > 0 ? "text-taken-ink" : diff < 0 ? "text-missed-ink" : "text-cocoa-500",
+          )}
+          aria-hidden
+        >
+          {diff > 0 ? (
+            <ArrowUpRight className="size-3.5" />
+          ) : diff < 0 ? (
+            <ArrowDownRight className="size-3.5" />
+          ) : (
+            <ArrowRight className="size-3.5" />
+          )}
+          {diff > 0 ? `+${diff}%` : diff < 0 ? `${diff}%` : "0%"}
+        </span>
+      )}
     </div>
   );
 }
@@ -110,11 +158,12 @@ function PatientList() {
           )
         ) : (
           <div className="relative overflow-x-auto">
-            <table className="w-full min-w-[760px] text-left text-sm">
+            <table className="w-full min-w-[860px] text-left text-sm">
               <thead className="border-b border-cocoa-100 bg-cream-50 text-xs font-extrabold uppercase tracking-wider text-cocoa-500">
                 <tr>
                   <th scope="col" className="px-5 py-3">Patient</th>
                   <th scope="col" className="px-3 py-3">On time · 7 days</th>
+                  <th scope="col" className="px-3 py-3">4-week trend</th>
                   <th scope="col" className="px-3 py-3">Adherence · 30 days</th>
                   <th scope="col" className="px-3 py-3">Missed · 7 days</th>
                   <th scope="col" className="px-3 py-3">Last dose</th>
@@ -137,6 +186,9 @@ function PatientList() {
                     </td>
                     <td className="px-3 py-3.5">
                       {p.hasData ? <span className={clsx("text-base font-black tabular", pctTone(p.onTimePct7))}>{p.onTimePct7 === null ? "—" : `${p.onTimePct7}%`}</span> : <Pill>No data yet</Pill>}
+                    </td>
+                    <td className="px-3 py-3.5">
+                      <Sparkline spark={p.spark} />
                     </td>
                     <td className="px-3 py-3.5">{p.hasData ? <Bar value={p.adherencePct30} /> : <span className="text-cocoa-400">—</span>}</td>
                     <td className="px-3 py-3.5">

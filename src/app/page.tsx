@@ -1,13 +1,14 @@
 import { Hospital, Users } from "lucide-react";
 import type { ReactNode } from "react";
 import { Bear } from "@/components/bear/bear-figure";
-import { ClockCard, HeroActions, RoleCards, VoiceCard } from "@/components/launcher/launcher";
+import { ClockCard, HeroActions, Journeys, LiveStrip, RoleCards, VoiceCard } from "@/components/launcher/launcher";
 import { BearMark, Logo } from "@/components/shared/logo";
 import { Parallax, Reveal } from "@/components/ui/reveal";
 
 const NAV_LINKS = [
   { href: "#how-it-works", label: "How it works" },
   { href: "#who-its-for", label: "Who it's for" },
+  { href: "#guided-demo", label: "Guided demo" },
   { href: "#about", label: "About" },
 ];
 
@@ -115,6 +116,16 @@ export default function LauncherPage() {
               <RoleCards />
             </div>
           </div>
+        </section>
+
+        {/* live strip */}
+        <Reveal from="scale" className="mx-auto max-w-[1260px] px-5 pt-8 tablet:px-[46px]">
+          <LiveStrip />
+        </Reveal>
+
+        {/* journeys */}
+        <section id="guided-demo" className="mx-auto max-w-[1260px] scroll-mt-20 px-5 py-14 tablet:px-[46px] tablet:py-20">
+          <Journeys />
         </section>
 
         {/* business */}

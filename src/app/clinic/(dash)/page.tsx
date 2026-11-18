@@ -1,7 +1,22 @@
 "use client";
 
 import clsx from "clsx";
-import { ArrowRight, BadgePercent, CalendarOff, CheckCircle2, Download, Eye, FileCheck2, PencilLine, ShieldCheck, Stethoscope, Users, XCircle } from "lucide-react";
+import {
+  ArrowRight,
+  BadgePercent,
+  CalendarOff,
+  CheckCircle2,
+  Download,
+  Eye,
+  FileCheck2,
+  Flame,
+  PencilLine,
+  ShieldCheck,
+  Stethoscope,
+  TrendingUp,
+  Users,
+  XCircle,
+} from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
@@ -13,12 +28,20 @@ import { Card, CardHeader } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Notice } from "@/components/ui/notice";
 import { Skeleton, SkeletonTiles } from "@/components/ui/spinner";
-import { KPI_TONES, StatTile, type KpiTone } from "@/components/ui/stat-tile";
+import { KPI_TONES, StatTile, type KpiTone, type Trend } from "@/components/ui/stat-tile";
 import { Pill } from "@/components/ui/status-pill";
 import { useClinicUser } from "@/hooks/use-clinic-user";
 import { errorMessage, fetcher } from "@/lib/api-client";
 import type { ClinicOverviewDTO } from "@/lib/contracts/clinic";
-import { formatDate, formatDateTime, formatTime, greetingFor } from "@/lib/time";
+import {
+  WEEKDAYS_LONG,
+  formatDate,
+  formatDateKey,
+  formatDateTime,
+  formatTime,
+  formatTimeOfDay,
+  greetingFor,
+} from "@/lib/time";
 
 type ClinicianData = NonNullable<ClinicOverviewDTO["clinician"]>;
 type AdminData = NonNullable<ClinicOverviewDTO["admin"]>;
@@ -31,7 +54,7 @@ function LoadingTiles() {
       <div className="grid gap-5 lg:grid-cols-2">
         <Skeleton className="h-64 rounded-soft" />
         <Skeleton className="h-64 rounded-soft" />
-        <Skeleton className="h-40 rounded-soft lg:col-span-2" />
+        <Skeleton className="h-48 rounded-soft lg:col-span-2" />
       </div>
     </div>
   );
@@ -39,6 +62,96 @@ function LoadingTiles() {
 
 /** Sections settle in one after another: short, small, and off with reduced motion. */
 const ENTER = ["animate-page-in", "animate-page-in [animation-delay:70ms]", "animate-page-in [animation-delay:140ms]"];
+
+function onTimeTrend(curr: number | null, prev: number | null): Trend | null {
+  if (curr === null || prev === null) return null;
+  const diff = curr - prev;
+  if (diff > 0) return { direction: "up", text: `+${diff}% vs last week`, good: true };
+  if (diff < 0) return { direction: "down", text: `${diff}% vs last week`, good: false };
+  return { direction: "flat", text: "Same as last week" };
+}
+
+function missedTrend(curr: number, prev: number, prevCounted: number): Trend | null {
+  if (prevCounted === 0) return null;
+  const diff = curr - prev;
+  if (diff < 0) return { direction: "down", text: `${Math.abs(diff)} fewer vs last week`, good: true };
+  if (diff > 0) return { direction: "up", text: `+${diff} vs last week`, good: false };
+  return { direction: "flat", text: "Same as last week" };
+}
+
+/** 6-week clinic adherence trend across all consented patients. */
+function WeeklyTrendCard({ weekly }: { weekly: ClinicianData["weekly"] }) {
+  return (
+    <Card className={`lg:col-span-2 ${ENTER[2]}`}>
+      <CardHeader
+        icon={<TrendingUp className="size-4" aria-hidden />}
+        title="6-week adherence trend"
+        description="Weekly on-time and overall adherence across your consented patients (oldest → this week)."
+      />
+      <div className="p-5 pt-4">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+          {weekly.map((w, idx) => {
+            const isLatest = idx === weekly.length - 1;
+            const onTime = w.onTimePct ?? 0;
+            const totalAdh = w.adherencePct ?? 0;
+            const latePct = Math.max(0, totalAdh - onTime);
+            return (
+              <div
+                key={w.from}
+                className={clsx(
+                  "flex flex-col justify-between rounded-xl border p-3.5 transition-colors",
+                  isLatest ? "border-teal/40 bg-mint/25" : "border-line bg-paper",
+                )}
+              >
+                <div className="flex items-center justify-between gap-1">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-muted">
+                    {isLatest ? "This week" : `Wk -${weekly.length - 1 - idx}`}
+                  </span>
+                  {isLatest && (
+                    <Pill tone="taken" compact>
+                      latest
+                    </Pill>
+                  )}
+                </div>
+                <div className="my-3">
+                  <div className="flex items-baseline justify-between">
+                    <span className="font-display tabular text-2xl font-extrabold text-cocoa">
+                      {w.onTimePct === null ? "—" : `${w.onTimePct}%`}
+                    </span>
+                    <span className="text-body-sm font-semibold text-muted">on time</span>
+                  </div>
+                  <div
+                    className="mt-2 flex h-2.5 w-full overflow-hidden rounded-full bg-cocoa-100"
+                    role="img"
+                    aria-label={`${formatDateKey(w.from)} to ${formatDateKey(w.to)}: ${w.onTimePct ?? 0}% on time, ${w.adherencePct ?? 0}% total adherence (${w.counted} doses)`}
+                  >
+                    <span className="h-full bg-taken transition-all" style={{ width: `${onTime}%` }} />
+                    {latePct > 0 && <span className="h-full bg-late transition-all" style={{ width: `${latePct}%` }} />}
+                  </div>
+                </div>
+                <div className="flex items-center justify-between text-[11px] font-semibold text-muted tabular">
+                  <span>{formatDateKey(w.from)}</span>
+                  <span>{w.counted} doses</span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        <div className="mt-3 flex flex-wrap items-center gap-4 text-xs font-bold text-cocoa-600">
+          <span className="inline-flex items-center gap-1.5">
+            <span className="size-2.5 rounded-sm bg-taken" aria-hidden /> Taken on time
+          </span>
+          <span className="inline-flex items-center gap-1.5">
+            <span className="size-2.5 rounded-sm bg-late" aria-hidden /> Taken late
+          </span>
+          <span className="inline-flex items-center gap-1.5">
+            <span className="size-2.5 rounded-sm bg-cocoa-100" aria-hidden /> Missed
+          </span>
+        </div>
+      </div>
+    </Card>
+  );
+}
 
 function ClinicianOverview({ c }: { c: ClinicianData }) {
   const today: { label: string; value: number; tone: KpiTone }[] = [
@@ -63,6 +176,7 @@ function ClinicianOverview({ c }: { c: ClinicianData }) {
           label="On time · 7 days"
           value={c.week.onTimePct === null ? "—" : `${c.week.onTimePct}%`}
           sub={`${c.week.taken} of ${c.week.counted} doses, all patients`}
+          trend={onTimeTrend(c.week.onTimePct, c.weekPrev.onTimePct)}
           icon={<CheckCircle2 className="size-4" />}
         />
         <StatTile
@@ -70,6 +184,7 @@ function ClinicianOverview({ c }: { c: ClinicianData }) {
           label="Missed · 7 days"
           value={c.week.missed}
           sub={`${c.week.late} more taken late`}
+          trend={missedTrend(c.week.missed, c.weekPrev.missed, c.weekPrev.counted)}
           icon={<XCircle className="size-4" />}
         />
         <StatTile
@@ -104,32 +219,49 @@ function ClinicianOverview({ c }: { c: ClinicianData }) {
             </div>
           ) : (
             <ul className="flex-1 divide-y divide-cocoa-100 px-5 pt-2 pb-3">
-              {c.needsAttention.map((p) => (
-                <li key={p.id}>
-                  <Link
-                    href={`/clinic/patients/${p.id}?tab=patterns`}
-                    className="group -mx-2 flex flex-wrap items-center justify-between gap-3 rounded-xl px-2 py-3 transition-colors duration-200 hover:bg-cream/70"
-                  >
-                    <span className="min-w-0">
-                      <span className="block font-bold text-cocoa group-hover:underline">{p.fullName}</span>
-                      <span className="mt-1.5 flex flex-wrap gap-1.5">
-                        {p.reasons.map((r) => (
-                          <Pill key={r} tone={r.includes("missed") ? "missed" : "late"}>
-                            {r}
-                          </Pill>
-                        ))}
+              {c.needsAttention.map((p) => {
+                const topText =
+                  p.topPattern &&
+                  `${WEEKDAYS_LONG[p.topPattern.weekday]} ${formatTimeOfDay(p.topPattern.timeOfDay)} (${p.topPattern.missed}/${p.topPattern.total} missed)`;
+                const showTopPill = topText && !p.reasons.some((r) => r.includes(WEEKDAYS_LONG[p.topPattern!.weekday]));
+                return (
+                  <li key={p.id}>
+                    <Link
+                      href={`/clinic/patients/${p.id}?tab=patterns`}
+                      className="group -mx-2 flex flex-wrap items-center justify-between gap-3 rounded-xl px-2 py-3 transition-colors duration-200 hover:bg-cream/70"
+                    >
+                      <span className="min-w-0">
+                        <span className="flex flex-wrap items-baseline gap-2">
+                          <span className="font-bold text-cocoa group-hover:underline">{p.fullName}</span>
+                          <span className="text-xs font-semibold text-muted">“{p.nickname}”</span>
+                          {p.onTimePct7 !== null && (
+                            <span className="tabular text-xs font-extrabold text-cocoa-600">· {p.onTimePct7}% on time (7d)</span>
+                          )}
+                        </span>
+                        <span className="mt-1.5 flex flex-wrap gap-1.5">
+                          {p.reasons.map((r) => (
+                            <Pill key={r} tone={r.includes("missed") ? "missed" : "late"}>
+                              {r}
+                            </Pill>
+                          ))}
+                          {showTopPill && (
+                            <Pill tone="late" icon={<Flame className="size-3" aria-hidden />}>
+                              Hotspot: {topText}
+                            </Pill>
+                          )}
+                        </span>
                       </span>
-                    </span>
-                    <span className="inline-flex items-center gap-1 text-sm font-bold whitespace-nowrap text-muted group-hover:text-cocoa">
-                      See patterns
-                      <ArrowRight
-                        className="size-4 transition-transform duration-300 ease-out-expo group-hover:translate-x-1"
-                        aria-hidden
-                      />
-                    </span>
-                  </Link>
-                </li>
-              ))}
+                      <span className="inline-flex items-center gap-1 text-sm font-bold whitespace-nowrap text-muted group-hover:text-cocoa">
+                        See patterns
+                        <ArrowRight
+                          className="size-4 transition-transform duration-300 ease-out-expo group-hover:translate-x-1"
+                          aria-hidden
+                        />
+                      </span>
+                    </Link>
+                  </li>
+                );
+              })}
             </ul>
           )}
         </Card>
@@ -155,6 +287,8 @@ function ClinicianOverview({ c }: { c: ClinicianData }) {
             ))}
           </dl>
         </Card>
+
+        {c.weekly.length > 0 && <WeeklyTrendCard weekly={c.weekly} />}
 
         {/* Recent missed doses: directly below, laid out across the row. */}
         <Card className={`lg:col-span-2 ${ENTER[2]}`}>
@@ -348,7 +482,7 @@ function Dashboard() {
 /** Clinic dashboard home page (default landing after sign-in). */
 export default function ClinicDashboardPage() {
   return (
-    <Suspense>
+    <Suspense fallback={<LoadingTiles />}>
       <Dashboard />
     </Suspense>
   );
