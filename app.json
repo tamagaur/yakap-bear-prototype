@@ -1,0 +1,67 @@
+{
+  "expo": {
+    "name": "Yakap Bear",
+    "slug": "yakap-bear",
+    "scheme": "yakapbear",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "backgroundColor": "#F7F0E5",
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.yakapbear.app",
+      "infoPlist": {
+        "NSMicrophoneUsageDescription": "Yakap Bear uses the microphone so you can record voice reminders for your loved one."
+      }
+    },
+    "android": {
+      "package": "com.yakapbear.app",
+      "adaptiveIcon": {
+        "backgroundColor": "#F7F0E5",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "permissions": [
+        "android.permission.RECORD_AUDIO"
+      ],
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "single",
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-status-bar",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 220,
+          "resizeMode": "contain",
+          "backgroundColor": "#F7F0E5"
+        }
+      ],
+      "expo-font",
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "Yakap Bear uses the microphone so you can record voice reminders for your loved one."
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "color": "#327F72"
+        }
+      ],
+      "expo-asset"
+    ],
+    "experiments": {
+      "typedRoutes": false
+    }
+  }
+}
