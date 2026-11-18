@@ -109,7 +109,7 @@ function PatientList() {
             </EmptyState>
           )
         ) : (
-          <div className="overflow-x-auto">
+          <div className="relative overflow-x-auto">
             <table className="w-full min-w-[760px] text-left text-sm">
               <thead className="border-b border-cocoa-100 bg-cream-50 text-xs font-extrabold uppercase tracking-wider text-cocoa-500">
                 <tr>
@@ -123,7 +123,7 @@ function PatientList() {
               </thead>
               <tbody className="divide-y divide-cocoa-100">
                 {data?.patients.map((p) => (
-                  <tr key={p.id} className="group hover:bg-cream-50">
+                  <tr key={p.id} className="group transition-colors duration-200 hover:bg-cream/60">
                     <td className="px-5 py-3.5">
                       <Link href={`/clinic/patients/${p.id}`} className="block focus:outline-none">
                         <span className="font-extrabold text-cocoa-900 group-hover:underline">{p.fullName}</span>

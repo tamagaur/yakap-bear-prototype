@@ -29,7 +29,7 @@ export function PatternHeatmap({ pattern }: { pattern: PatternDTO }) {
 
   return (
     <div>
-      <div className="overflow-x-auto">
+      <div className="relative overflow-x-auto">
         <table className="w-full min-w-[420px] border-separate border-spacing-[3px] text-sm">
           <caption className="sr-only">
             Missed doses by weekday and dose time over the last {pattern.days} days. Each cell shows missed out of total doses.

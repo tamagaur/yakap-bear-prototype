@@ -56,8 +56,8 @@ export function ClinicShell({ children }: { children: ReactNode }) {
             aria-current={active ? "page" : undefined}
             onClick={() => setMenuOpen(false)}
             className={clsx(
-              "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-bold transition-colors",
-              active ? "bg-cream-50 text-cocoa-900" : "text-cocoa-200 hover:bg-cocoa-800 hover:text-cream-50",
+              "group/nav flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-bold transition-[background-color,color,box-shadow] duration-200 ease-out",
+              active ? "bg-cream-50 text-cocoa-900 shadow-card" : "text-cocoa-200 hover:bg-cocoa-800 hover:text-cream-50",
             )}
           >
             <n.icon className="size-4.5" aria-hidden />
@@ -77,7 +77,7 @@ export function ClinicShell({ children }: { children: ReactNode }) {
         <button
           type="button"
           onClick={logout}
-          className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-cocoa-900 py-2 text-sm font-bold text-cream-100 hover:bg-cocoa-950"
+          className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-cocoa-900 py-2 text-sm font-bold text-cream-100 transition-colors duration-200 hover:bg-cocoa-950 active:scale-[0.98]"
         >
           <LogOut className="size-4" aria-hidden /> Sign out
         </button>
@@ -86,7 +86,7 @@ export function ClinicShell({ children }: { children: ReactNode }) {
   );
 
   return (
-    <div className="min-h-dvh bg-cream-50">
+    <div className="min-h-dvh bg-cream">
       <DemoBar />
       <div className="flex min-h-[calc(100dvh-28px)]">
         <aside className="hidden w-64 shrink-0 bg-cocoa-900 lg:block">
@@ -111,7 +111,9 @@ export function ClinicShell({ children }: { children: ReactNode }) {
               {menuOpen ? <X className="size-5" /> : <Menu className="size-5" />}
             </button>
           </div>
-          <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+          {/* Full width beside the sidebar: no centered column, no dead space. Grids inside adapt. */}
+          <main className="w-full px-4 py-6 sm:px-6 lg:px-10 lg:py-9">
+
             {error ? (
               <div className="py-20 text-center text-sm font-semibold text-missed-ink">
                 Can&apos;t reach the Yakap API. Is the Rust server running?

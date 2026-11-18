@@ -113,7 +113,7 @@ export function DoseLogTable({
       ) : data && data.doses.length === 0 ? (
         <EmptyState title="No doses match these filters">Widen the date range or turn more statuses back on.</EmptyState>
       ) : (
-        <div className="max-h-[34rem] overflow-auto">
+        <div className="relative max-h-[34rem] overflow-auto">
           <table className="w-full min-w-[720px] text-left text-sm">
             <thead className="sticky top-0 z-[1] bg-cream-50 text-xs font-extrabold uppercase tracking-wider text-cocoa-500">
               <tr>
@@ -137,7 +137,7 @@ export function DoseLogTable({
               {data?.doses.map((d) => {
                 const last = d.corrections.at(-1);
                 return (
-                  <tr key={d.id} className="align-top hover:bg-cream-50/70">
+                  <tr key={d.id} className="align-top transition-colors duration-200 hover:bg-cream/60">
                     <td className="px-4 py-2.5 font-semibold text-cocoa-800 whitespace-nowrap">{formatDate(d.scheduledFor)}</td>
                     <td className="px-3 py-2.5 whitespace-nowrap">
                       <span className="font-bold tabular">{formatTime(d.scheduledFor)}</span>

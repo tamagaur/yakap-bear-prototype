@@ -1,14 +1,13 @@
 import { Hospital, Users } from "lucide-react";
 import type { ReactNode } from "react";
 import { Bear } from "@/components/bear/bear-figure";
-import { ClockCard, HeroActions, Journeys, LiveStrip, RoleCards, VoiceCard } from "@/components/launcher/launcher";
+import { ClockCard, HeroActions, RoleCards, VoiceCard } from "@/components/launcher/launcher";
 import { BearMark, Logo } from "@/components/shared/logo";
 import { Parallax, Reveal } from "@/components/ui/reveal";
 
 const NAV_LINKS = [
   { href: "#how-it-works", label: "How it works" },
   { href: "#who-its-for", label: "Who it's for" },
-  { href: "#guided-demo", label: "Guided demo" },
   { href: "#about", label: "About" },
 ];
 
@@ -40,33 +39,39 @@ export default function LauncherPage() {
         {/* hero */}
         <section
           id="how-it-works"
-          className="mx-auto grid max-w-[1260px] scroll-mt-24 items-center gap-6 px-5 py-10 tablet:min-h-[610px] tablet:grid-cols-[1.06fr_0.94fr] tablet:px-[46px] tablet:py-14"
+          className="mx-auto grid max-w-[1260px] scroll-mt-24 items-center gap-6 overflow-hidden px-5 py-10 tablet:min-h-[610px] tablet:grid-cols-[1.2fr_0.8fr] tablet:px-[46px] tablet:py-14"
         >
           <Parallax speed={0.14} fade>
-            <p className="eyebrow text-cocoa-700">A reminder that sounds like home</p>
-            <h1 className="mt-4 max-w-[650px] text-display-sm font-extrabold text-cocoa tablet:text-display">
-              Helping every dose feel like a{" "}
-              <span className="relative whitespace-nowrap text-teal">
-                warm yakap.
-                <svg
-                  viewBox="0 0 200 8"
-                  preserveAspectRatio="none"
-                  className="absolute -bottom-1.5 left-1 h-[7px] w-[calc(100%-4px)]"
-                  aria-hidden
-                >
-                  <path
-                    d="M0 5 Q12.5 0 25 5 T50 5 T75 5 T100 5 T125 5 T150 5 T175 5 T200 5"
-                    fill="none"
-                    stroke="#dfa526"
-                    strokeWidth="3"
-                    vectorEffect="non-scaling-stroke"
-                  />
-                </svg>
+            {/*
+              Two fixed lines: "feel like a warm yakap." always sits on one line. The second line is
+              about 10.35em wide, so the size follows the column width (÷10.6) up to the 62px display size.
+            */}
+            <h1 className="text-[clamp(1.75rem,calc((100vw_-_40px)_/_10.6),2.625rem)] leading-[1.06] font-extrabold text-cocoa tablet:text-[clamp(2.6rem,calc((100vw_-_116px)_*_0.0566),3.875rem)]">
+              <span className="block">Helping every dose</span>
+              <span className="block whitespace-nowrap">
+                feel like a{" "}
+                <span className="relative text-teal">
+                  warm yakap.
+                  <svg
+                    viewBox="0 0 200 8"
+                    preserveAspectRatio="none"
+                    className="absolute -bottom-1.5 left-1 h-[7px] w-[calc(100%-4px)]"
+                    aria-hidden
+                  >
+                    <path
+                      d="M0 5 Q12.5 0 25 5 T50 5 T75 5 T100 5 T125 5 T150 5 T175 5 T200 5"
+                      fill="none"
+                      stroke="#dfa526"
+                      strokeWidth="3"
+                      vectorEffect="non-scaling-stroke"
+                    />
+                  </svg>
+                </span>
               </span>
             </h1>
-            <p className="mt-6 max-w-[610px] text-body-lg text-muted tablet:text-lede">
-              Yakap Bear plays a loved one&apos;s recorded reminder. One gentle 3-second paw hold logs each dose: no
-              microphone, no monitoring.
+            <p className="mt-6 max-w-[560px] text-body-lg text-muted tablet:text-lede">
+              The bear plays a loved one&apos;s recorded reminder. One 3-second paw hold logs the dose. It has no
+              microphone.
             </p>
             <HeroActions />
             <ClockCard />
@@ -74,23 +79,17 @@ export default function LauncherPage() {
 
           <div className="relative mx-auto grid h-[440px] w-full max-w-[520px] place-items-center pb-[90px] tablet:h-[490px] tablet:pb-0">
             <Parallax speed={0.24} className="absolute inset-0">
-            <span
-              className="absolute inset-x-0 top-[30px] mx-auto size-[290px] rounded-full bg-[#f2dca8] tablet:inset-0 tablet:m-auto tablet:size-[370px]"
-              aria-hidden
-            />
-            <span
-              className="absolute inset-x-0 top-[15px] mx-auto size-[320px] rotate-[8deg] rounded-[48%_52%_54%_46%] border-2 border-dashed border-[#d1a860] tablet:inset-0 tablet:m-auto tablet:size-[400px]"
-              aria-hidden
-            />
-            <span
-              className="absolute top-4 right-0 rotate-[19deg] text-[11px] tracking-[0.18em] text-honey-dark tablet:top-7 tablet:right-2"
-              aria-hidden
-            >
-              dose time • yakap time •
-            </span>
+              <span
+                className="absolute inset-x-0 top-[30px] mx-auto size-[290px] rounded-full bg-[#f2dca8] tablet:inset-0 tablet:m-auto tablet:size-[300px] min-[1100px]:size-[370px]"
+                aria-hidden
+              />
+              <span
+                className="absolute inset-x-0 top-[15px] mx-auto size-[320px] rotate-[8deg] rounded-[48%_52%_54%_46%] border-2 border-dashed border-[#d1a860] tablet:inset-0 tablet:m-auto tablet:size-[326px] min-[1100px]:size-[400px]"
+                aria-hidden
+              />
             </Parallax>
             <Parallax speed={0.1} className="relative">
-              <Bear expression="happy" motion="breathe" className="w-[230px] tablet:w-[320px]" />
+              <Bear expression="happy" motion="breathe" className="w-[230px] tablet:w-[260px] min-[1100px]:w-[320px]" />
             </Parallax>
             <div className="absolute bottom-0 left-1/2 -translate-x-1/2 tablet:right-0 tablet:bottom-9 tablet:left-auto tablet:translate-x-0">
               <Parallax speed={-0.06}>
@@ -116,16 +115,6 @@ export default function LauncherPage() {
               <RoleCards />
             </div>
           </div>
-        </section>
-
-        {/* live strip */}
-        <Reveal from="scale" className="mx-auto max-w-[1260px] px-5 pt-8 tablet:px-[46px]">
-          <LiveStrip />
-        </Reveal>
-
-        {/* journeys */}
-        <section id="guided-demo" className="mx-auto max-w-[1260px] scroll-mt-20 px-5 py-14 tablet:px-[46px] tablet:py-20">
-          <Journeys />
         </section>
 
         {/* business */}

@@ -48,7 +48,7 @@ export default function AuditPage() {
         ) : data && data.entries.length === 0 ? (
           <EmptyState title="No audit entries for this filter" />
         ) : (
-          <div className="overflow-x-auto">
+          <div className="relative overflow-x-auto">
             <table className="w-full min-w-[820px] text-left text-sm">
               <thead className="border-b border-cocoa-100 bg-cream-50 text-xs font-extrabold uppercase tracking-wider text-cocoa-500">
                 <tr>
@@ -61,7 +61,7 @@ export default function AuditPage() {
               </thead>
               <tbody className="divide-y divide-cocoa-100">
                 {data?.entries.map((e) => (
-                  <tr key={e.id} className="align-top hover:bg-cream-50/70">
+                  <tr key={e.id} className="align-top transition-colors duration-200 hover:bg-cream/60">
                     <td className="px-5 py-3 whitespace-nowrap font-semibold text-cocoa-700 tabular">{formatDateTime(e.simTime)}</td>
                     <td className="px-3 py-3">
                       <span className="font-bold whitespace-nowrap text-cocoa-900">{e.actorName}</span>
