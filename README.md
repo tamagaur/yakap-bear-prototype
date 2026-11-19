@@ -98,6 +98,9 @@ backend/                 Rust API (M5 Hans)
 src/app/page.tsx         launcher (S9 M6 Jertz)
 src/app/bear/            bear simulator page (S1–S8 M6 Jertz)
 src/components/bear/     bear figure, paw button, chips, dose card, demo panel (M6)
+  bear-3d.tsx            3D plush device (Three.js / React Three Fiber, built from code): fixed toy face; only the heart light,
+                         speaker, paw sensor and vibration react. bear-3d-stage.tsx adds
+                         drag-to-turn, the 2D/3D switch and the automatic 2D fallback (no WebGL / render error)
 src/hooks/use-bear-device.ts, use-hold-gesture.ts   bear logic (M6)
 src/app/clinic/          login (D1 M3 Kiarra), dashboard home (D7/D9 M4), patients (D2 M3), detail (D8 M4), audit (D5 M3), plan (D6 M3)
 src/components/clinic/   shell (D7 M4), dose log + export (D3/D4 M3), adherence cards, daily chart, heatmap (D9/D10 M4)

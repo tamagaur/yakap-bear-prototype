@@ -31,6 +31,7 @@ export function Bear({
   motion = "none",
   hearts = false,
   shakeKey = 0,
+  blink = true,
   label,
   className,
 }: {
@@ -41,6 +42,8 @@ export function Bear({
   hearts?: boolean;
   /** Change to re-trigger the gentle head shake. */
   shakeKey?: number;
+  /** Mascot blinks; the simulated device (a plush toy with fixed safety eyes) does not. */
+  blink?: boolean;
   label?: string;
   className?: string;
 }) {
@@ -146,7 +149,7 @@ export function Bear({
               <path d="M172 117 Q182.5 103 193 117" />
             </g>
           ) : (
-            <g className="animate-blink" style={{ ...box, transformOrigin: "50% 50%" }}>
+            <g className={clsx(blink && "animate-blink")} style={{ ...box, transformOrigin: "50% 50%" }}>
               <ellipse cx="97.5" cy="113" rx="8.5" ry="10" fill={INK} />
               <ellipse cx="182.5" cy="113" rx="8.5" ry="10" fill={INK} />
               <circle cx="94.5" cy="108.5" r="2.5" fill="#fff" />
@@ -200,35 +203,30 @@ export function Bear({
   );
 }
 
-const MOOD_EXPRESSION: Record<BearMood, BearExpression> = {
-  idle: "happy",
-  reminder: "happy",
-  happy: "proud",
-  ignored: "puzzled",
-  sleepy: "sleepy",
-};
-
-/** The simulated device: the mascot plus mood-driven motion and the heart status light. */
+/**
+ * The simulated device (2D fallback for the 3D bear): a stuffed toy, not a creature — one fixed
+ * face, no blinking or breathing. Only the electronics react: the heart status light, and the
+ * vibration motor during a reminder.
+ */
 export function BearFigure({
   mood,
   led,
   className,
-  shakeKey = 0,
 }: {
   mood: BearMood;
   led: LedColor;
   /** Kept for callers; the design shows sound bars in the speech bubble instead of on the chest. */
   speaking?: boolean;
   className?: string;
+  /** Kept for callers; the plush itself never shakes. */
   shakeKey?: number;
 }) {
   return (
     <Bear
-      expression={MOOD_EXPRESSION[mood]}
-      heart={led}
-      motion={mood === "reminder" ? "wiggle" : mood === "sleepy" ? "none" : "breathe"}
-      hearts={mood === "happy"}
-      shakeKey={mood === "ignored" ? shakeKey : 0}
+      expression="happy"
+      heart={mood === "happy" ? "green" : led}
+      motion={mood === "reminder" ? "wiggle" : "none"}
+      blink={false}
       className={className}
     />
   );

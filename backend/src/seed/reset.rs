@@ -12,7 +12,7 @@ use sqlx::{PgPool, Postgres, QueryBuilder};
 use crate::{
     config::Config,
     dose_rules::{DEFAULT_LATE_MINUTES, DEFAULT_WINDOW_MINUTES, TimeRange},
-    error::ApiResult,
+    error::{ApiError, ApiResult},
     new_id,
     seed::{
         DEMO_PASSWORD, audio,
@@ -37,21 +37,80 @@ pub struct ResetSummary {
 
 const CHUNK: usize = 500;
 
+/// Rebuilds the fictional dataset (B13 demo reset).
+///
+/// Runs as ONE transaction: while it rebuilds, the bear simulator, the clinic dashboard and the
+/// family app keep polling, and they must see either the old data or the complete new data —
+/// never a half-built database. If the rebuild collides with those requests (deadlock, lock
+/// timeout) the transaction rolls back cleanly and the reset is retried.
 pub async fn reset_demo(pool: &PgPool, cfg: &Config, sim_now: Option<DateTime<Utc>>) -> ApiResult<ResetSummary> {
+    let mut attempt: u64 = 0;
+    loop {
+        attempt += 1;
+        match reset_once(pool, cfg, sim_now).await {
+            Ok(summary) => return Ok(summary),
+            Err(ResetError::Db(e)) if attempt < 4 && is_retryable(&e) => {
+                tracing::warn!(error = %e, attempt, "demo reset collided with other requests; retrying");
+                tokio::time::sleep(std::time::Duration::from_millis(400 * attempt)).await;
+            }
+            Err(ResetError::Db(e)) => return Err(e.into()),
+            Err(ResetError::Api(e)) => return Err(e),
+        }
+    }
+}
+
+enum ResetError {
+    Db(sqlx::Error),
+    Api(ApiError),
+}
+
+impl From<sqlx::Error> for ResetError {
+    fn from(e: sqlx::Error) -> Self {
+        Self::Db(e)
+    }
+}
+
+impl From<ApiError> for ResetError {
+    fn from(e: ApiError) -> Self {
+        Self::Api(e)
+    }
+}
+
+/// Deadlock, serialization failure, lock timeout, a connection left in a failed transaction,
+/// or a momentarily exhausted pool — all safe to retry because the reset is one transaction.
+fn is_retryable(e: &sqlx::Error) -> bool {
+    match e {
+        sqlx::Error::Database(db) => matches!(db.code().as_deref(), Some("40P01" | "40001" | "55P03" | "25P02")),
+        sqlx::Error::PoolTimedOut => true,
+        _ => false,
+    }
+}
+
+async fn reset_once(pool: &PgPool, cfg: &Config, sim_now: Option<DateTime<Utc>>) -> Result<ResetSummary, ResetError> {
     let now = sim_now.unwrap_or_else(|| clock::reset_target(Utc::now()));
     let today = time::date_of(now);
     let days_ago = |n: i64, hhmm: &str| time::from_manila(time::add_days(today, -n), hhmm);
 
+    let password_hash = crate::auth::hash_password(DEMO_PASSWORD.to_string()).await?;
+
+    let mut tx = pool.begin().await?;
+    // Don't wait long behind other requests' locks: fail fast, roll back, retry.
+    sqlx::query("SET LOCAL lock_timeout = '5s'").execute(&mut *tx).await?;
     sqlx::query(
         "TRUNCATE TABLE audit_log, sms_messages, alerts, dose_corrections, dose_attempts, dose_events,
                         dose_schedules, voice_messages, consents, away_periods, family_contacts, bear_devices,
                         patient_members, patients, users, sim_clock RESTART IDENTITY CASCADE",
     )
-    .execute(pool)
+    .execute(&mut *tx)
     .await?;
-    clock::set_now(pool, now, true).await?;
-
-    let password_hash = crate::auth::hash_password(DEMO_PASSWORD.to_string()).await?;
+    // Demo clock → reset time (same row clock::set_now writes, inside this transaction).
+    sqlx::query(
+        "INSERT INTO sim_clock (id, offset_ms, updated_at) VALUES (1, $1, now())
+         ON CONFLICT (id) DO UPDATE SET offset_ms = EXCLUDED.offset_ms, updated_at = now()",
+    )
+    .bind((now - Utc::now()).num_milliseconds())
+    .execute(&mut *tx)
+    .await?;
     let mut qb: QueryBuilder<Postgres> =
         QueryBuilder::new("INSERT INTO users (id, email, password_hash, name, role, clinic_name, title, created_at) ");
     qb.push_values(USERS, |mut b, u| {
@@ -64,7 +123,7 @@ pub async fn reset_demo(pool: &PgPool, cfg: &Config, sim_now: Option<DateTime<Ut
             .push_bind(u.title)
             .push_bind(days_ago(80, "09:00"));
     });
-    qb.build().execute(pool).await?;
+    qb.build().execute(&mut *tx).await?;
 
     let chime = audio::chime_wav();
     let mut all = HistoryRows::default();
@@ -78,13 +137,13 @@ pub async fn reset_demo(pool: &PgPool, cfg: &Config, sim_now: Option<DateTime<Ut
         .bind(p.nickname)
         .bind(p.birth_year)
         .bind(days_ago(p.created_days_ago, "09:00"))
-        .execute(pool)
+        .execute(&mut *tx)
         .await?;
         sqlx::query("INSERT INTO patient_members (user_id, patient_id, relationship) VALUES ($1, $2, $3)")
             .bind(p.member_user_id)
             .bind(p.id)
             .bind(p.member_relationship)
-            .execute(pool)
+            .execute(&mut *tx)
             .await?;
         for (i, c) in p.contacts.iter().enumerate() {
             sqlx::query(
@@ -98,7 +157,7 @@ pub async fn reset_demo(pool: &PgPool, cfg: &Config, sim_now: Option<DateTime<Ut
             .bind(c.phone)
             .bind(c.receives_sms)
             .bind(days_ago(p.created_days_ago, "09:00") + Duration::seconds(i as i64))
-            .execute(pool)
+            .execute(&mut *tx)
             .await?;
         }
         sqlx::query("INSERT INTO bear_devices (id, patient_id, device_key, battery_pct) VALUES ($1, $2, $3, $4)")
@@ -106,7 +165,7 @@ pub async fn reset_demo(pool: &PgPool, cfg: &Config, sim_now: Option<DateTime<Ut
             .bind(p.id)
             .bind(&cfg.bear_device_key)
             .bind(p.battery_pct)
-            .execute(pool)
+            .execute(&mut *tx)
             .await?;
 
         let sample_voice_id = format!("voice_sample_{}", p.key);
@@ -120,7 +179,7 @@ pub async fn reset_demo(pool: &PgPool, cfg: &Config, sim_now: Option<DateTime<Ut
             .bind(audio::CHIME_DURATION_SEC)
             .bind(chime.len() as i32)
             .bind(&chime)
-            .execute(pool)
+            .execute(&mut *tx)
             .await?;
         }
         for s in p.schedules {
@@ -142,7 +201,7 @@ pub async fn reset_demo(pool: &PgPool, cfg: &Config, sim_now: Option<DateTime<Ut
             .bind(s.pill_note)
             .bind((s.sample_voice && p.sample_voice).then(|| sample_voice_id.clone()))
             .bind(effective)
-            .execute(pool)
+            .execute(&mut *tx)
             .await?;
         }
 
@@ -230,7 +289,7 @@ pub async fn reset_demo(pool: &PgPool, cfg: &Config, sim_now: Option<DateTime<Ut
                 .push_bind(e.corrected)
                 .push_bind(e.original_status);
         });
-        qb.build().execute(pool).await?;
+        qb.build().execute(&mut *tx).await?;
     }
     for chunk in all.alerts.chunks(CHUNK) {
         let mut qb: QueryBuilder<Postgres> = QueryBuilder::new(
@@ -250,7 +309,7 @@ pub async fn reset_demo(pool: &PgPool, cfg: &Config, sim_now: Option<DateTime<Ut
                 .push_bind(a.resolved_at)
                 .push_bind(&a.resolution);
         });
-        qb.build().execute(pool).await?;
+        qb.build().execute(&mut *tx).await?;
     }
     for chunk in all.sms.chunks(CHUNK) {
         let mut qb: QueryBuilder<Postgres> =
@@ -264,7 +323,7 @@ pub async fn reset_demo(pool: &PgPool, cfg: &Config, sim_now: Option<DateTime<Ut
                 .push_bind(&s.body)
                 .push_bind(s.sent_at);
         });
-        qb.build().execute(pool).await?;
+        qb.build().execute(&mut *tx).await?;
     }
     for chunk in all.attempts.chunks(CHUNK) {
         let mut qb: QueryBuilder<Postgres> = QueryBuilder::new(
@@ -279,7 +338,7 @@ pub async fn reset_demo(pool: &PgPool, cfg: &Config, sim_now: Option<DateTime<Ut
                 .push_bind(a.hold_ms)
                 .push_bind(a.reason);
         });
-        qb.build().execute(pool).await?;
+        qb.build().execute(&mut *tx).await?;
     }
     for c in &all.corrections {
         sqlx::query(
@@ -292,7 +351,7 @@ pub async fn reset_demo(pool: &PgPool, cfg: &Config, sim_now: Option<DateTime<Ut
         .bind(&c.reason)
         .bind(&c.corrected_by_id)
         .bind(c.corrected_at)
-        .execute(pool)
+        .execute(&mut *tx)
         .await?;
     }
 
@@ -313,7 +372,7 @@ pub async fn reset_demo(pool: &PgPool, cfg: &Config, sim_now: Option<DateTime<Ut
         .bind(a.note)
         .bind(a.created_by_id)
         .bind(days_ago(a.from_days_ago + 1, "10:00"))
-        .execute(pool)
+        .execute(&mut *tx)
         .await?;
     }
 
@@ -338,7 +397,7 @@ pub async fn reset_demo(pool: &PgPool, cfg: &Config, sim_now: Option<DateTime<Ut
         .bind(granted_at)
         .bind(revoked_at)
         .bind(revoked_at.map(|_| c.granted_by_id))
-        .execute(pool)
+        .execute(&mut *tx)
         .await?;
         let family = user(c.granted_by_id);
         let clinician = user(c.clinician_id);
@@ -422,9 +481,10 @@ pub async fn reset_demo(pool: &PgPool, cfg: &Config, sim_now: Option<DateTime<Ut
             .push_bind(sim)
             .push_bind(sim);
     });
-    qb.build().execute(pool).await?;
+    qb.build().execute(&mut *tx).await?;
+    tx.commit().await?;
 
-    // Materialize today's/tomorrow's open doses and apply away mode.
+    // Materialize today's/tomorrow's open doses and apply away mode (uses its own transactions).
     dose_engine::evaluate_all(pool, now).await?;
 
     let count = |sql: &'static str| async move { sqlx::query_scalar::<_, i64>(sql).fetch_one(pool).await };

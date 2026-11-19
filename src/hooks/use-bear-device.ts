@@ -232,7 +232,7 @@ export function useBearDevice(opts: { startOffline?: boolean } = {}) {
       show({
         mood: "sleepy",
         kicker: "Low battery",
-        text: "I need a little rest",
+        text: "Battery low. Please charge me",
         sub: "Battery is low. Please plug me in tonight. The family app has been told.",
       });
     }
@@ -543,7 +543,7 @@ export function useBearDevice(opts: { startOffline?: boolean } = {}) {
         if (!open) {
           mood = "sleepy";
           kicker = "Low battery";
-          bubble = "I need a little rest";
+          bubble = "Battery low. Please charge me";
         }
         sub = "Battery is low. Please plug me in tonight.";
       }

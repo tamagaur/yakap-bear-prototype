@@ -15,6 +15,12 @@ const API_URL = (process.env.API_URL || "http://localhost:8080").replace(/\/$/, 
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
+  experimental: {
+    // The dev disk cache kept serving an old Tailwind stylesheet after component edits, even
+    // across restarts (classes added in .tsx files never appeared). Off for dev only, so a
+    // restart always shows current styles. Production builds are unaffected.
+    turbopackFileSystemCacheForDev: false,
+  },
   turbopack: {
     // Pin the workspace root (a stray lockfile in the home folder confuses detection).
     root: process.cwd(),

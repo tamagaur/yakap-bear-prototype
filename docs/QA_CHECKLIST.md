@@ -99,6 +99,7 @@ Legend: ✅ verified · 🖥 verified in a desktop/mobile-emulated browser · �
 | 9 | Integration tests assumed an exact demo-clock instant (clock ticks in real time) | Minor | Tests | flaky assertion | tolerance + boundary covered by unit tests | 11/11 pass | — |
 | 10 | Local `.env` secrets accidentally emptied while editing config | Minor (environment) | Dev setup | lengths 0 | regenerated secrets, restarted servers, reseeded | e2e 43/43 | Teammates generate their own secrets |
 | 11 | Status amber (late) contrast 2.95:1 | Minor | Accessibility | palette validator WARN | kept for separation from “missed”; added labels, legend, tooltips, table view | validator + screenshots | — |
+| 12 | Demo reset failed (500) on the shared Neon DB while the bear page was polling: deadlock, then a pooled connection stuck in a failed transaction | Major | Demo tools (B13) | API log: `deadlock detected`, `current transaction is aborted` | Reset now runs as one transaction (5 s lock timeout) and retries on deadlock/lock timeout/aborted connection | 3 resets during 60 concurrent bear polls: all OK, 0 errors; `cargo test` 42/42; e2e 56/56 | Reset takes ~10 s over Neon |
 
 ## Known limitations (not defects)
 
