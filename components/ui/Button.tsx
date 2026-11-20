@@ -24,7 +24,7 @@ interface ButtonProps {
 const palette: Record<ButtonVariant, { background: string; foreground: string; border?: string }> = {
   primary: { background: colors.honey, foreground: colors.text },
   teal: { background: colors.primary, foreground: colors.textOnPrimary },
-  secondary: { background: colors.card, foreground: colors.text, border: colors.border },
+  secondary: { background: colors.card, foreground: colors.text, border: colors.borderStrong },
   ghost: { background: 'transparent', foreground: colors.primaryDark },
   danger: { background: colors.coralSoft, foreground: colors.coralDeep },
 };
@@ -81,13 +81,14 @@ export function Button({
 const styles = StyleSheet.create({
   base: {
     minHeight: 54,
-    borderRadius: radii.md,
+    borderRadius: radii.pill,
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.sm,
     alignItems: 'center',
     justifyContent: 'center',
   },
   compact: { minHeight: TOUCH_TARGET - 4, paddingHorizontal: spacing.md, paddingVertical: spacing.xs },
+  // Secondary buttons read as soft chips rather than outlined boxes.
   row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.xs },
   label: { flexShrink: 1, textAlign: 'center' },
   disabled: { opacity: 0.5 },

@@ -105,7 +105,8 @@ export class DemoBearService implements BearService {
     voicePlayback.stop();
     this.update({ playback: 'chime', message: null });
     haptics.soft();
-    await wait(CHIME_MS);
+    // The chime is real audio through the phone speaker; the wait keeps the step visible.
+    await Promise.all([voicePlayback.playChime(), wait(CHIME_MS)]);
     if (run !== this.runId) return;
 
     if (recording) {

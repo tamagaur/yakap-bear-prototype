@@ -45,6 +45,7 @@ export const RELATIONSHIP_OPTIONS = [
   'Grandfather',
   'Mother',
   'Father',
+  'Child',
   'Aunt',
   'Uncle',
   'Spouse',

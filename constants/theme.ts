@@ -5,7 +5,7 @@ export const colors = {
   cream: '#F7F0E5', // brand
   creamDeep: '#EFE5D6',
   card: '#FFFCF7', // brand
-  border: '#EADFCF',
+  border: '#EDE3D4',
   borderStrong: '#D9CBB7',
 
   primary: '#327F72', // brand
@@ -35,7 +35,7 @@ export const colors = {
 
 export const spacing = { xxs: 4, xs: 8, sm: 12, md: 16, lg: 20, xl: 24, xxl: 32, xxxl: 40 } as const;
 
-export const radii = { sm: 10, md: 14, lg: 20, xl: 26, pill: 999 } as const;
+export const radii = { sm: 12, md: 16, lg: 22, xl: 28, pill: 999 } as const;
 
 export const fonts = {
   headingBold: 'Nunito_700Bold',
@@ -56,7 +56,7 @@ export const type = {
   small: { fontFamily: fonts.body, fontSize: 14, lineHeight: 20 },
   smallBold: { fontFamily: fonts.bodyBold, fontSize: 14, lineHeight: 20 },
   caption: { fontFamily: fonts.bodyMedium, fontSize: 13, lineHeight: 18 },
-  eyebrow: { fontFamily: fonts.bodyBold, fontSize: 12.5, lineHeight: 17, letterSpacing: 1.1, textTransform: 'uppercase' },
+  eyebrow: { fontFamily: fonts.bodyBold, fontSize: 12, lineHeight: 16, letterSpacing: 1, textTransform: 'uppercase' },
   button: { fontFamily: fonts.bodyBold, fontSize: 16.5, lineHeight: 22 },
 } satisfies Record<string, TextStyle>;
 
@@ -64,9 +64,9 @@ export type TypeVariant = keyof typeof type;
 
 export const shadows = {
   soft: Platform.select<ViewStyle>({
-    ios: { shadowColor: '#7E5238', shadowOpacity: 0.09, shadowRadius: 14, shadowOffset: { width: 0, height: 6 } },
-    android: { elevation: 2, shadowColor: '#7E5238' },
-    default: { boxShadow: '0 6px 16px rgba(126, 82, 56, 0.09)' },
+    ios: { shadowColor: '#7E5238', shadowOpacity: 0.07, shadowRadius: 12, shadowOffset: { width: 0, height: 4 } },
+    android: { elevation: 1.5, shadowColor: '#7E5238' },
+    default: { boxShadow: '0 4px 14px rgba(126, 82, 56, 0.07)' },
   }) as ViewStyle,
   raised: Platform.select<ViewStyle>({
     ios: { shadowColor: '#7E5238', shadowOpacity: 0.16, shadowRadius: 20, shadowOffset: { width: 0, height: 10 } },

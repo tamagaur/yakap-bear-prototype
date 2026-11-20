@@ -17,7 +17,7 @@ export function DoseAssignList({
   if (options.length === 0) {
     return (
       <AppText variant="small" color={colors.textMuted}>
-        Add a medication first, then you can assign this message to its dose times.
+        Add a medication first.
       </AppText>
     );
   }

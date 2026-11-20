@@ -2,18 +2,16 @@ import { router } from 'expo-router';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Animated, StyleSheet, View } from 'react-native';
 
-import { BearMascot } from '@/components/bear/BearMascot';
+import { BearMascot, type BearMood } from '@/components/bear/BearMascot';
 import { BearPairingPanel } from '@/components/onboarding/BearPairingPanel';
 import { ReferralPanel } from '@/components/onboarding/ReferralPanel';
 import { ContactsStep, DosesStep, useWhoForm, VoiceStep } from '@/components/onboarding/steps';
 import { AppText } from '@/components/ui/AppText';
-import { IconBadge, ProgressBar } from '@/components/ui/Bits';
 import { Button } from '@/components/ui/Button';
 import { FadeIn } from '@/components/ui/Card';
-import { type IconName } from '@/components/ui/Icon';
 import { PressableScale } from '@/components/ui/PressableScale';
 import { Screen, ScreenHeader } from '@/components/ui/Screen';
-import { colors, motion, spacing } from '@/constants/theme';
+import { colors, motion, radii, spacing } from '@/constants/theme';
 import { useFeedback } from '@/contexts/FeedbackContext';
 import { useReducedMotion } from '@/hooks/useReducedMotion';
 import { requestNotificationPermission } from '@/services/notifications';
@@ -34,14 +32,39 @@ function StepBody({ stepKey, children }: { stepKey: number; children: ReactNode 
   return <Animated.View style={[styles.body, { opacity: progress, transform: [{ translateX }] }]}>{children}</Animated.View>;
 }
 
-function StepHeading({ icon, title, subtitle }: { icon: IconName; title: string; subtitle: string }) {
+function StepDots({ step, total }: { step: number; total: number }) {
+  return (
+    <View
+      pointerEvents="none"
+      style={styles.dots}
+      accessibilityRole="progressbar"
+      accessibilityLabel={`Step ${step + 1} of ${total}`}
+      accessibilityValue={{ min: 1, max: total, now: step + 1 }}
+    >
+      {Array.from({ length: total }, (_, index) => (
+        <View
+          key={index}
+          style={[
+            styles.dot,
+            index < step && styles.dotDone,
+            index === step && styles.dotActive,
+          ]}
+        />
+      ))}
+    </View>
+  );
+}
+
+function StepHeading({ mood, title, subtitle }: { mood?: BearMood; title: string; subtitle?: string }) {
   return (
     <View style={styles.heading}>
-      <IconBadge icon={icon} size={48} />
-      <AppText variant="h1" accessibilityRole="header">
-        {title}
-      </AppText>
-      <AppText color={colors.textMuted}>{subtitle}</AppText>
+      <View style={styles.headingText}>
+        <AppText variant="h1" accessibilityRole="header">
+          {title}
+        </AppText>
+        {subtitle ? <AppText color={colors.textMuted}>{subtitle}</AppText> : null}
+      </View>
+      {mood ? <BearMascot size={78} mood={mood} /> : null}
     </View>
   );
 }
@@ -51,16 +74,16 @@ function FinishView({ name, onDone }: { name: string; onDone: () => void }) {
   return (
     <Screen contentStyle={styles.finish}>
       <FadeIn style={styles.finishInner}>
-        <BearMascot size={220} mood="happy" waving floating />
+        <BearMascot size={220} mood="celebrating" />
         <AppText variant="display" align="center">
-          {name}'s bear is ready
+          {name === 'Your' ? 'All set!' : `${name}'s bear is ready!`}
         </AppText>
         <AppText color={colors.textMuted} align="center">
-          Thank you for caring so warmly. Next, allow notifications so reminders can reach this phone at dose time.
+          Allow notifications so reminders reach you on time.
         </AppText>
       </FadeIn>
       <Button
-        label="Go to my home screen"
+        label="Let's go"
         iconRight="arrow-right"
         loading={busy}
         onPress={() => {
@@ -124,18 +147,14 @@ export default function OnboardingScreen() {
     );
   }
 
-  const content: { icon: IconName; title: string; subtitle: string; body: ReactNode }[] = [
-    { icon: 'user', title: 'Who will use the bear?', subtitle: 'Tell us about the person you care for.', body: who.fields },
-    {
-      icon: 'link',
-      title: 'Connect your referral',
-      subtitle: `Enter the code from ${name === 'Your' ? 'the' : `${name}'s`} care team, if you have one.`,
-      body: <ReferralPanel />,
-    },
-    { icon: 'paw', title: `Pair ${name === 'Your' ? 'your' : `${name}'s`} bear`, subtitle: 'Meet the Demo Bear and see how pairing works.', body: <BearPairingPanel /> },
-    { icon: 'plus', title: 'Add dose times', subtitle: `We'll help the bear remind ${name === 'Your' ? 'them' : name} at the right time.`, body: <DosesStep /> },
-    { icon: 'heart', title: 'Record your first reminder', subtitle: 'A familiar voice makes each reminder feel warmer.', body: <VoiceStep onUnsavedChange={setHasUnsavedTake} /> },
-    { icon: 'message-square', title: 'Add family contacts', subtitle: 'Choose who you may want to text if a dose is not confirmed.', body: <ContactsStep /> },
+  const possessive = name === 'Your' ? 'your' : `${name}'s`;
+  const content: { mood?: BearMood; title: string; subtitle?: string; body: ReactNode }[] = [
+    { mood: 'happy', title: 'Who are we caring for?', body: who.fields },
+    { mood: 'idle', title: 'Got a clinic code?', subtitle: 'Optional', body: <ReferralPanel /> },
+    { title: `Meet ${possessive} bear`, body: <BearPairingPanel /> },
+    { mood: 'happy', title: 'Medication schedule', subtitle: 'Add each medicine as prescribed.', body: <DosesStep /> },
+    { title: 'Record a loving message', body: <VoiceStep onUnsavedChange={setHasUnsavedTake} /> },
+    { mood: 'excited', title: 'Family contacts', subtitle: 'Optional', body: <ContactsStep /> },
   ];
   const current = content[step];
   const isLast = step === TOTAL_STEPS - 1;
@@ -145,7 +164,6 @@ export default function OnboardingScreen() {
       header={
         <View>
           <ScreenHeader
-            title={`Step ${step + 1} of ${TOTAL_STEPS}`}
             showBack={step > 0}
             onBack={() => goTo(step - 1)}
             right={
@@ -158,15 +176,13 @@ export default function OnboardingScreen() {
               ) : null
             }
           />
-          <View style={styles.progress}>
-            <ProgressBar value={(step + 1) / TOTAL_STEPS} label="Setup progress" />
-          </View>
+          <StepDots step={step} total={TOTAL_STEPS} />
         </View>
       }
-      footer={<Button label={isLast ? 'Finish setup' : 'Continue'} iconRight="chevron-right" onPress={() => void advance()} />}
+      footer={<Button label={isLast ? 'Finish' : 'Continue'} iconRight="chevron-right" onPress={() => void advance()} />}
     >
       <StepBody stepKey={step}>
-        <StepHeading icon={current.icon} title={current.title} subtitle={current.subtitle} />
+        <StepHeading mood={current.mood} title={current.title} subtitle={current.subtitle} />
         {current.body}
       </StepBody>
     </Screen>
@@ -174,9 +190,23 @@ export default function OnboardingScreen() {
 }
 
 const styles = StyleSheet.create({
-  progress: { paddingHorizontal: spacing.lg, paddingBottom: spacing.xs },
+  dots: {
+    position: 'absolute',
+    top: 0,
+    left: 72,
+    right: 72,
+    height: 56,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  dot: { width: 8, height: 8, borderRadius: radii.pill, backgroundColor: colors.borderStrong },
+  dotDone: { backgroundColor: colors.primary, opacity: 0.45 },
+  dotActive: { width: 26, backgroundColor: colors.primary },
   body: { gap: spacing.lg },
-  heading: { gap: spacing.xxs },
+  heading: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginTop: spacing.xs },
+  headingText: { flex: 1, gap: spacing.xxs },
   finish: { justifyContent: 'space-between', paddingTop: spacing.xxxl },
   finishInner: { alignItems: 'center', gap: spacing.sm },
 });

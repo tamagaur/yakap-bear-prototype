@@ -47,10 +47,7 @@ export default function LoginScreen() {
   return (
     <Screen header={<ScreenHeader />}>
       <View style={styles.hero}>
-        <BearMascot size={118} />
-        <AppText variant="eyebrow" color={colors.primaryDark}>
-          Care, in a familiar voice
-        </AppText>
+        <BearMascot size={118} mood="happy" waving />
         <AppText variant="h1" align="center">
           Welcome back
         </AppText>
@@ -99,8 +96,8 @@ export default function LoginScreen() {
         </AppText>
         <View style={styles.line} />
       </View>
-      <Button label="Open demo care plan" variant="secondary" onPress={() => setDemoOpen(true)} />
-      <Button compact variant="ghost" label="New here? Create an account" onPress={() => router.push('/signup')} />
+      <Button label="Try the demo" variant="secondary" onPress={() => setDemoOpen(true)} />
+      <Button compact variant="ghost" label="New here? Create account" onPress={() => router.push('/signup')} />
 
       <DemoEntrySheet visible={demoOpen} onClose={() => setDemoOpen(false)} />
     </Screen>

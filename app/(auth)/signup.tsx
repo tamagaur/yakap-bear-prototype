@@ -49,7 +49,7 @@ export default function SignUpScreen() {
   return (
     <Screen header={<ScreenHeader />}>
       <AppText variant="h1">Create your account</AppText>
-      <AppText color={colors.textMuted}>Keep your family's care plan in one warm, familiar place.</AppText>
+      <AppText color={colors.textMuted}>Your family's care plan, all in one place.</AppText>
 
       <BackendNotice />
       {awaitingEmail ? (

@@ -3,11 +3,11 @@ import { useEffect, useState } from 'react';
 import { Notice } from '@/components/ui/Bits';
 import { BottomSheet } from '@/components/ui/BottomSheet';
 import { Button } from '@/components/ui/Button';
-import { Checkbox, SelectField, TextField, ToggleRow } from '@/components/ui/Fields';
+import { Checkbox, PhoneField, SelectField, TextField, ToggleRow } from '@/components/ui/Fields';
 import { CONTACT_RELATIONSHIP_OPTIONS } from '@/constants/defaults';
 import { useCareStore } from '@/stores/careStore';
 import type { ContactInput, FamilyContact } from '@/types/models';
-import { isValidPhone } from '@/utils/validation';
+import { formatPhPhone, isCompletePhPhone } from '@/utils/phone';
 
 const blank: ContactInput = {
   name: '',
@@ -65,11 +65,11 @@ export function ContactFormSheet({
     const nextErrors: Errors = {};
     if (!form.name.trim()) nextErrors.name = 'Please enter a name.';
     if (!form.relationship) nextErrors.relationship = 'Please choose a relationship.';
-    if (!isValidPhone(form.phone)) nextErrors.phone = 'Please enter a valid phone number.';
+    if (!isCompletePhPhone(form.phone)) nextErrors.phone = 'Enter a mobile number, like 0912 345 6789.';
     if (!form.consentConfirmed) nextErrors.consent = 'Please confirm this person has agreed.';
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length > 0) return;
-    saveContact(form);
+    saveContact({ ...form, phone: formatPhPhone(form.phone) });
     onClose();
   };
 
@@ -88,15 +88,7 @@ export function ContactFormSheet({
         onChange={(relationship) => patch({ relationship })}
         error={errors.relationship}
       />
-      <TextField
-        label="Phone number"
-        value={form.phone}
-        onChangeText={(phone) => patch({ phone })}
-        error={errors.phone}
-        keyboardType="phone-pad"
-        autoComplete="tel"
-        placeholder="+63 900 000 0000"
-      />
+      <PhoneField label="Mobile number" value={form.phone} onChangeText={(phone) => patch({ phone })} error={errors.phone} />
       <ToggleRow
         label="Unconfirmed doses"
         description="Suggest this person when a dose is not confirmed."

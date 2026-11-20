@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Animated, Easing, Pressable, StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/ui/AppText';
-import { DemoTag, Notice, StatusPill } from '@/components/ui/Bits';
+import { Notice, StatusPill } from '@/components/ui/Bits';
 import { BottomSheet } from '@/components/ui/BottomSheet';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
@@ -54,7 +54,7 @@ function PawHold({ onComplete }: { onComplete: () => void }) {
       <Animated.View style={[styles.pawFill, { width }]} />
       <Icon name="paw" size={22} color={colors.brownDark} />
       <AppText variant="smallBold" color={colors.brownDark}>
-        {holding ? 'Keep holding…' : "Hold the bear's paw to confirm"}
+        {holding ? 'Keep holding…' : 'Hold paw to confirm'}
       </AppText>
     </Pressable>
   );
@@ -90,7 +90,7 @@ export function DoseActionSheet({ occurrence, onClose, onRecorded }: DoseActionS
     recordDose(dose, 'taken', { source });
     onClose();
     onRecorded?.('taken');
-    celebrate(`Thank you! ${recipient}'s dose is confirmed.`);
+    celebrate(`Yay! ${recipient}'s dose is done.`);
   };
 
   const skip = () => {
@@ -98,12 +98,12 @@ export function DoseActionSheet({ occurrence, onClose, onRecorded }: DoseActionS
     haptics.warning();
     onClose();
     onRecorded?.('skipped');
-    toast('Recorded as skipped.', 'info');
+    toast('Marked as skipped.', 'info');
   };
 
   return (
-    <BottomSheet visible={Boolean(occurrence)} onClose={onClose} title="Confirm this dose" subtitle={`For ${recipient}`}>
-      <Card style={styles.summary}>
+    <BottomSheet visible={Boolean(occurrence)} onClose={onClose} title="Confirm dose" subtitle={`For ${recipient}`}>
+      <Card style={styles.summary} tone="flat">
         <View style={styles.summaryText}>
           <AppText variant="h3">{dose.medicationName}</AppText>
           <AppText color={colors.textMuted}>
@@ -122,17 +122,17 @@ export function DoseActionSheet({ occurrence, onClose, onRecorded }: DoseActionS
         <Notice
           icon="clock"
           tone="honey"
-          message={`This dose is scheduled for ${formatTime(dose.time)}. Confirm only if it has really been taken.`}
+          message={`Due at ${formatTime(dose.time)}. Only confirm if it's been taken.`}
         />
       ) : null}
 
       {confirmingSkip ? (
         <View style={styles.actions}>
-          <AppText variant="title">Record this dose as skipped?</AppText>
+          <AppText variant="title">Mark as skipped?</AppText>
           <AppText variant="small" color={colors.textMuted}>
-            Skipped doses appear in History. For questions about a missed dose, please ask the prescriber or pharmacist.
+            Unsure about a missed dose? Ask the pharmacist.
           </AppText>
-          <Button label="Yes, record as skipped" variant="danger" onPress={skip} />
+          <Button label="Yes, skip it" variant="danger" onPress={skip} />
           <Button label="Go back" variant="ghost" onPress={() => setConfirmingSkip(false)} />
         </View>
       ) : (
@@ -141,10 +141,12 @@ export function DoseActionSheet({ occurrence, onClose, onRecorded }: DoseActionS
           {bear.connection === 'connected' ? (
             <View style={styles.demoBlock}>
               <PawHold onComplete={() => confirmTaken('demo_paw')} />
-              <DemoTag label="Simulated Demo Bear" />
+              <AppText variant="caption" color={colors.textMuted}>
+                Demo Bear · simulated
+              </AppText>
             </View>
           ) : null}
-          <Button label="Skip this dose" variant="ghost" onPress={() => setConfirmingSkip(true)} />
+          <Button label="Skip dose" variant="ghost" onPress={() => setConfirmingSkip(true)} />
         </View>
       )}
     </BottomSheet>
@@ -152,7 +154,7 @@ export function DoseActionSheet({ occurrence, onClose, onRecorded }: DoseActionS
 }
 
 const styles = StyleSheet.create({
-  summary: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.xs },
+  summary: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.xs, backgroundColor: colors.card },
   summaryText: { flex: 1, gap: 2 },
   actions: { gap: spacing.xs },
   demoBlock: { gap: 6, alignItems: 'center' },
@@ -163,7 +165,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: spacing.xs,
-    borderRadius: radii.md,
+    borderRadius: radii.pill,
     backgroundColor: colors.brownSoft,
     overflow: 'hidden',
   },

@@ -3,9 +3,9 @@ import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { BearMascot } from '@/components/bear/BearMascot';
-import { BearPairingPanel } from '@/components/onboarding/BearPairingPanel';
+import { BearPairingPanel, DemoBearInfo } from '@/components/onboarding/BearPairingPanel';
 import { AppText } from '@/components/ui/AppText';
-import { DemoTag, Divider, Notice, Tag } from '@/components/ui/Bits';
+import { Divider, Notice, Tag } from '@/components/ui/Bits';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { SelectField } from '@/components/ui/Fields';
@@ -51,14 +51,14 @@ export default function BearScreen() {
   const setBattery = (battery: number) => {
     bearService.setDemoBattery(battery);
     setBearBattery(battery);
-    toast(`Simulated battery set to ${battery}%.`, 'info');
+    toast(`Battery set to ${battery}%.`, 'info');
   };
 
   const remove = async () => {
     const approved = await confirm({
       title: 'Remove the Demo Bear?',
-      message: 'You can pair it again at any time. Your voice messages stay saved.',
-      confirmLabel: 'Remove Demo Bear',
+      message: 'You can pair it again anytime. Messages stay saved.',
+      confirmLabel: 'Remove',
       destructive: true,
     });
     if (!approved) return;
@@ -80,18 +80,25 @@ export default function BearScreen() {
       <Card style={styles.hero}>
         <BearMascot
           size={170}
-          mood={bear.playback === 'awaiting_confirmation' ? 'happy' : bear.playback === 'playing' ? 'listening' : 'idle'}
-          waving={bear.playback === 'chime' || bear.playback === 'playing'}
-          floating={isConnected}
+          mood={
+            bear.playback === 'awaiting_confirmation'
+              ? 'happy'
+              : bear.playback === 'playing'
+                ? 'listening'
+                : isConnected
+                  ? 'idle'
+                  : 'sleepy'
+          }
+          waving={bear.playback === 'chime'}
         />
         <AppText variant="h2">{data.bear.serial}</AppText>
-        <DemoTag label="Simulated Demo Bear" />
+        <DemoBearInfo active={isConnected} />
       </Card>
 
       <Card style={styles.block}>
-        <InfoRow label="Connection" value={isConnected ? 'Connected (simulated)' : 'Disconnected'} />
+        <InfoRow label="Connection" value={isConnected ? 'Connected' : 'Disconnected'} />
         <Divider />
-        <InfoRow label="Battery" value={bear.battery !== null ? `${bear.battery}% (simulated)` : 'Unavailable'} />
+        <InfoRow label="Battery" value={bear.battery !== null ? `${bear.battery}%` : 'Unavailable'} />
         <Divider />
         <InfoRow label="Paired" value={format(new Date(data.bear.pairedAt), 'MMM d, yyyy')} />
         {isConnected ? (
@@ -103,9 +110,6 @@ export default function BearScreen() {
 
       <Card style={styles.block}>
         <AppText variant="h3">Preview a reminder</AppText>
-        <AppText variant="small" color={colors.textMuted}>
-          See the sequence a bear would follow at dose time. Sound plays through this phone.
-        </AppText>
         <SelectField
           label="Voice message"
           value={recordingId}
@@ -114,7 +118,7 @@ export default function BearScreen() {
             { value: 'none', label: 'Chime only' },
             ...data.recordings.map((item) => ({ value: item.id, label: item.name })),
           ]}
-          hint={data.recordings.length === 0 ? 'Record a message in the Voice tab to hear it here.' : undefined}
+          hint={data.recordings.length === 0 ? 'Record one in the Voice tab.' : undefined}
         />
         <View style={styles.sequence}>
           {SEQUENCE.map((step) => {
@@ -134,30 +138,23 @@ export default function BearScreen() {
           <Notice icon="alert-circle" tone="coral" message={bear.message} />
         ) : null}
         {isPlaying ? (
-          <Button variant="secondary" icon="square" label="Stop preview" onPress={() => bearService.stopPlayback()} />
+          <Button variant="secondary" icon="square" label="Stop" onPress={() => bearService.stopPlayback()} />
         ) : (
-          <Button icon="play" label="Preview reminder" disabled={!isConnected} onPress={() => void bearService.previewReminder(recording)} />
+          <Button icon="play" label="Play preview" disabled={!isConnected} onPress={() => void bearService.previewReminder(recording)} />
         )}
-        <Notice icon="info" message="A preview never marks a dose as taken." />
+        <AppText variant="caption" color={colors.textMuted} align="center">
+          Previews never mark a dose as taken.
+        </AppText>
       </Card>
 
       <Card style={styles.block}>
-        <AppText variant="h3">Demo controls</AppText>
-        <AppText variant="small" color={colors.textMuted}>
-          Try how the app responds to simulated battery levels.
-        </AppText>
+        <AppText variant="h3">Demo battery</AppText>
         <View style={styles.row}>
           <Button compact variant="secondary" icon="battery" label="Low (15%)" containerStyle={styles.flex} onPress={() => setBattery(15)} />
           <Button compact variant="secondary" icon="battery-charging" label="Full (100%)" containerStyle={styles.flex} onPress={() => setBattery(100)} />
         </View>
       </Card>
 
-      <Notice
-        icon="cpu"
-        tone="honey"
-        title="About the physical bear"
-        message="This version does not connect to real hardware. No audio is transmitted to any device."
-      />
       <Button label="Remove Demo Bear" variant="danger" icon="trash-2" onPress={() => void remove()} />
     </Screen>
   );

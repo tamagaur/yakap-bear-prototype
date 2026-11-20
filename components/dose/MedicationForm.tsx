@@ -59,7 +59,7 @@ export function MedicationForm({
 
   const voiceOptions = useMemo<SelectOption[]>(
     () => [
-      { value: NO_VOICE, label: 'No voice message yet' },
+      { value: NO_VOICE, label: 'None' },
       ...data.recordings.map((recording) => ({ value: recording.id, label: recording.name })),
     ],
     [data.recordings],
@@ -96,22 +96,22 @@ export function MedicationForm({
         value={form.name}
         onChangeText={(name) => patch({ name })}
         error={errors.name}
-        placeholder="As written on the prescription"
+        placeholder="As on the prescription"
         autoCapitalize="words"
         maxLength={60}
       />
       <TextField
-        label="Dose or quantity"
+        label="Dose"
         value={form.doseLabel}
         onChangeText={(doseLabel) => patch({ doseLabel })}
         error={errors.doseLabel}
-        hint="Enter exactly what was prescribed. Yakap Bear never suggests doses."
-        placeholder="For example, 2 tablets"
+        hint="Exactly as prescribed."
+        placeholder="e.g. 2 tablets"
         maxLength={40}
       />
 
       <View style={styles.section}>
-        <AppText variant="smallBold">Dose times</AppText>
+        <AppText variant="smallBold">Times</AppText>
         {form.doses.map((dose, index) => (
           <Card key={dose.scheduleId ?? `new-${index}`} style={styles.doseCard}>
             <View style={styles.doseTop}>
@@ -129,11 +129,11 @@ export function MedicationForm({
               ) : null}
             </View>
             <SelectField
-              label="Voice reminder"
+              label="Voice message"
               value={dose.voiceRecordingId ?? NO_VOICE}
               options={voiceOptions}
               onChange={(value) => patchDose(index, { voiceRecordingId: value === NO_VOICE ? undefined : value })}
-              hint={data.recordings.length === 0 ? 'Record a message in the Voice tab to use it here.' : undefined}
+              hint={data.recordings.length === 0 ? 'Record one in the Voice tab.' : undefined}
             />
           </Card>
         ))}
@@ -146,11 +146,11 @@ export function MedicationForm({
           compact
           variant="secondary"
           icon="plus"
-          label="Add another time"
+          label="Add time"
           onPress={() => patch({ doses: [...form.doses, { time: suggestNextTime(form.doses) }] })}
         />
         {startsTomorrow ? (
-          <Notice icon="info" message="A new time that has already passed today will begin tomorrow." />
+          <Notice icon="info" message="Times already past today start tomorrow." />
         ) : null}
       </View>
 
@@ -160,14 +160,16 @@ export function MedicationForm({
         label="Instructions (optional)"
         value={form.instructions}
         onChangeText={(instructions) => patch({ instructions })}
-        placeholder="For example, take after breakfast"
+        placeholder="e.g. After breakfast"
         multiline
         maxLength={160}
       />
 
-      <Notice icon="shield" tone="honey" message="Schedules should follow the instructions from the prescriber or pharmacist." />
+      <AppText variant="caption" color={colors.textMuted} align="center">
+        Follow your prescriber or pharmacist&apos;s instructions.
+      </AppText>
 
-      <Button label={medicationId ? 'Save changes' : 'Save medication'} onPress={submit} />
+      <Button label={medicationId ? 'Save changes' : 'Save'} icon="check" onPress={submit} />
       {onDelete ? <Button label="Delete medication" variant="danger" icon="trash-2" onPress={onDelete} /> : null}
     </View>
   );

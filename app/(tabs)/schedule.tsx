@@ -5,10 +5,10 @@ import { ScrollView, StyleSheet, View } from 'react-native';
 
 import { DoseActionSheet } from '@/components/dose/DoseActionSheet';
 import { AppText } from '@/components/ui/AppText';
-import { EmptyState, Notice, STATUS_META, StatusPill } from '@/components/ui/Bits';
+import { Divider, EmptyState, STATUS_META, StatusPill } from '@/components/ui/Bits';
 import { BottomSheet } from '@/components/ui/BottomSheet';
 import { Button } from '@/components/ui/Button';
-import { Card, FadeIn } from '@/components/ui/Card';
+import { Card, SwapIn } from '@/components/ui/Card';
 import { Icon } from '@/components/ui/Icon';
 import { PressableScale } from '@/components/ui/PressableScale';
 import { IconButton, Screen, ScreenHeader } from '@/components/ui/Screen';
@@ -80,51 +80,59 @@ function DoseCard({
 }) {
   const data = useCareData();
   const voice = data.recordings.find((item) => item.id === dose.voiceRecordingId);
-  const accent = STATUS_META[dose.status].color;
+  const meta = STATUS_META[dose.status];
 
   return (
-    <Card style={[styles.doseCard, { borderLeftColor: accent }]}>
+    <Card style={styles.doseCard}>
       <View style={styles.doseTop}>
-        <View style={styles.doseTime}>
-          <AppText variant="h3">{format(dose.scheduledAt, 'h:mm')}</AppText>
-          <AppText variant="caption" color={colors.textMuted}>
+        <View style={[styles.doseTime, { backgroundColor: `${meta.color}1A` }]}>
+          <AppText variant="h3" color={meta.color}>
+            {format(dose.scheduledAt, 'h:mm')}
+          </AppText>
+          <AppText variant="caption" color={meta.color} style={styles.period}>
             {format(dose.scheduledAt, 'a')}
           </AppText>
         </View>
-        <View style={styles.flex}>
-          <AppText variant="title">{dose.medicationName}</AppText>
-          <AppText variant="small" color={colors.textMuted}>
+        <View style={styles.doseInfo}>
+          <AppText variant="title" numberOfLines={1}>
+            {dose.medicationName}
+          </AppText>
+          <AppText variant="small" color={colors.textMuted} numberOfLines={1}>
             {dose.doseLabel}
           </AppText>
           <StatusPill status={dose.status} confirmedLate={dose.confirmedLate} />
         </View>
-        <PressableScale accessibilityLabel={`Options for ${dose.medicationName}`} onPress={onMenu} style={styles.menuButton}>
-          <Icon name="edit-2" size={20} color={colors.primaryDark} />
+        <PressableScale
+          accessibilityLabel={`Options for ${dose.medicationName}`}
+          onPress={onMenu}
+          hitSlop={6}
+          style={styles.menuButton}
+        >
+          <Icon name="more-horizontal" size={20} color={colors.textMuted} />
         </PressableScale>
       </View>
 
-      <View style={styles.doseMeta}>
-        <View style={styles.metaRow}>
-          <Icon name="clock" size={15} color={colors.textMuted} />
-          <AppText variant="small" color={colors.textMuted}>
-            On time {describeWindow(dose, data.settings)}
+      <View style={styles.metaRow}>
+        <View style={styles.metaItem}>
+          <Icon name="clock" size={13} color={colors.textMuted} />
+          <AppText variant="caption" color={colors.textMuted}>
+            {describeWindow(dose, data.settings)}
           </AppText>
         </View>
-        <View style={styles.metaRow}>
-          <Icon name="alert-triangle" size={15} color={colors.textMuted} />
-          <AppText variant="small" color={colors.textMuted}>
-            Late until {lateUntil(dose, data.settings)}
-          </AppText>
-        </View>
-        <View style={styles.metaRow}>
-          <Icon name="volume-2" size={15} color={colors.textMuted} />
-          <AppText variant="small" color={colors.textMuted} style={styles.flex} numberOfLines={1}>
-            {voice ? `"${voice.name}"` : 'No voice message'}
+        <View style={[styles.metaItem, styles.flex]}>
+          <Icon name={voice ? 'volume-2' : 'volume-x'} size={13} color={colors.textMuted} />
+          <AppText variant="caption" color={colors.textMuted} numberOfLines={1} style={styles.flex}>
+            {voice ? voice.name : 'No voice'}
           </AppText>
         </View>
       </View>
+      {dose.status === 'late' ? (
+        <AppText variant="caption" color={colors.honeyDark}>
+          Confirm by {lateUntil(dose, data.settings)}
+        </AppText>
+      ) : null}
 
-      {canAct ? <Button compact variant="teal" icon="check" label="Confirm dose" onPress={onAct} /> : null}
+      {canAct ? <Button compact variant="teal" icon="check" label="Mark as taken" onPress={onAct} /> : null}
     </Card>
   );
 }
@@ -160,8 +168,8 @@ export default function ScheduleScreen() {
     afterSheetClose(async () => {
       const approved = await confirm({
         title: `Delete ${dose.medicationName}?`,
-        message: 'All of its future reminders will stop. Doses already logged stay in History.',
-        confirmLabel: 'Delete medication',
+        message: 'Future reminders stop. Past logs stay in History.',
+        confirmLabel: 'Delete',
         destructive: true,
       });
       if (!approved) return;
@@ -175,9 +183,9 @@ export default function ScheduleScreen() {
       tabbed
       header={
         <ScreenHeader
+          large
           title="Schedule"
-          showBack={false}
-          right={<IconButton icon="plus" label="Add a medication" onPress={() => router.push('/medication/edit')} />}
+          right={<IconButton icon="plus" tone="card" label="Add medication" onPress={() => router.push('/medication/edit')} />}
         />
       }
     >
@@ -194,25 +202,21 @@ export default function ScheduleScreen() {
 
       {data.schedules.length === 0 ? (
         <EmptyState
-          title="No medications yet"
-          message={`Add ${recipient}'s dose times and they will appear here.`}
-          actionLabel="Add a medication"
+          title="No medicines yet"
+          message={`Add ${recipient}'s dose times.`}
+          actionLabel="Add medication"
           onAction={() => router.push('/medication/edit')}
         />
       ) : view === 'day' ? (
-        <FadeIn key={selectedKey} style={styles.list}>
-          <View>
-            <AppText variant="eyebrow" color={colors.primaryDark}>
-              {describeDay(selected, now)}
+        <SwapIn swapKey={selectedKey} style={styles.list}>
+          <View style={styles.dayTitle}>
+            <AppText variant="h3">{describeDay(selected, now)}</AppText>
+            <AppText variant="small" color={colors.textMuted}>
+              {format(selected, 'EEE, MMM d')}
             </AppText>
-            <AppText variant="h2">{format(selected, 'EEEE, MMMM d')}</AppText>
           </View>
           {dayDoses.length === 0 ? (
-            <Card>
-              <AppText color={colors.textMuted} align="center">
-                No doses scheduled on this day.
-              </AppText>
-            </Card>
+            <EmptyState mood="sleepy" size={90} title="Nothing scheduled" />
           ) : (
             dayDoses.map((dose) => (
               <DoseCard
@@ -224,51 +228,63 @@ export default function ScheduleScreen() {
               />
             ))
           )}
-        </FadeIn>
+        </SwapIn>
       ) : (
-        <FadeIn key={`week-${toDateKey(weekDays[0].date)}`} style={styles.list}>
-          {weekDays.map(({ date, doses }) => (
-            <Card key={date.toISOString()} style={styles.weekCard}>
-              <PressableScale
-                accessibilityLabel={`Open ${format(date, 'EEEE, MMMM d')}`}
-                onPress={() => {
-                  setSelected(date);
-                  setView('day');
-                }}
-                style={styles.weekHeader}
-              >
-                <AppText variant="title" style={styles.flex}>
-                  {format(date, 'EEE, MMM d')}
-                </AppText>
-                <Icon name="chevron-right" size={18} color={colors.textMuted} />
-              </PressableScale>
-              {doses.length === 0 ? (
-                <AppText variant="small" color={colors.textMuted}>
-                  No doses
-                </AppText>
-              ) : (
-                doses.map((dose) => (
-                  <View key={dose.key} style={styles.weekRow}>
-                    <AppText variant="smallBold" style={styles.weekTime}>
-                      {formatTime(dose.time)}
-                    </AppText>
-                    <AppText variant="small" style={styles.flex} numberOfLines={1}>
-                      {dose.medicationName}
-                    </AppText>
-                    <StatusPill status={dose.status} confirmedLate={dose.confirmedLate} />
-                  </View>
-                ))
-              )}
-            </Card>
-          ))}
-        </FadeIn>
+        <SwapIn swapKey={`week-${toDateKey(weekDays[0].date)}`}>
+          <Card style={styles.weekCard}>
+            {weekDays.map(({ date, doses }, index) => {
+              const isToday = isSameDay(date, now);
+              return (
+                <View key={date.toISOString()}>
+                  {index > 0 ? <Divider /> : null}
+                  <PressableScale
+                    accessibilityLabel={`Open ${format(date, 'EEEE, MMMM d')}`}
+                    onPress={() => {
+                      setSelected(date);
+                      setView('day');
+                    }}
+                    pressedScale={0.99}
+                    style={styles.weekRow}
+                  >
+                    <View style={[styles.weekDay, isToday && styles.weekDayToday]}>
+                      <AppText variant="caption" color={isToday ? colors.textOnPrimary : colors.textMuted}>
+                        {format(date, 'EEE')}
+                      </AppText>
+                      <AppText variant="title" color={isToday ? colors.textOnPrimary : colors.text}>
+                        {format(date, 'd')}
+                      </AppText>
+                    </View>
+                    <View style={styles.weekDoses}>
+                      {doses.length === 0 ? (
+                        <AppText variant="small" color={colors.textMuted}>
+                          No doses
+                        </AppText>
+                      ) : (
+                        doses.map((dose) => (
+                          <View key={dose.key} style={styles.weekDose}>
+                            <View style={[styles.weekDot, { backgroundColor: STATUS_META[dose.status].color }]} />
+                            <AppText variant="smallBold" style={styles.weekTime}>
+                              {formatTime(dose.time)}
+                            </AppText>
+                            <AppText variant="small" color={colors.textMuted} numberOfLines={1} style={styles.flex}>
+                              {dose.medicationName}
+                            </AppText>
+                          </View>
+                        ))
+                      )}
+                    </View>
+                    <Icon name="chevron-right" size={18} color={colors.textMuted} />
+                  </PressableScale>
+                </View>
+              );
+            })}
+          </Card>
+        </SwapIn>
       )}
 
-      <Notice
-        icon="shield"
-        tone="honey"
-        message={`Schedule changes are not medical advice. Please confirm dose instructions with ${recipient}'s care team.`}
-      />
+      <AppText variant="caption" color={colors.textMuted} align="center">
+        Follow your care team&apos;s dose instructions.
+      </AppText>
 
       <DoseActionSheet occurrence={activeDose} onClose={() => setActiveDose(null)} />
 
@@ -279,7 +295,7 @@ export default function ScheduleScreen() {
         subtitle={menuDose ? `${menuDose.doseLabel} · ${formatTime(menuDose.time)}` : undefined}
       >
         <Button
-          label="Edit medication"
+          label="Edit"
           variant="secondary"
           icon="edit-2"
           onPress={() => {
@@ -288,7 +304,7 @@ export default function ScheduleScreen() {
             if (id) afterSheetClose(() => router.push({ pathname: '/medication/edit', params: { id } }));
           }}
         />
-        <Button label="Delete medication" variant="danger" icon="trash-2" onPress={() => menuDose && handleDelete(menuDose)} />
+        <Button label="Delete" variant="danger" icon="trash-2" onPress={() => menuDose && handleDelete(menuDose)} />
       </BottomSheet>
     </Screen>
   );
@@ -299,11 +315,11 @@ const styles = StyleSheet.create({
   strip: { gap: spacing.xs, paddingVertical: 2 },
   stripDay: {
     width: DAY_WIDTH - spacing.xs,
-    minHeight: 76,
+    minHeight: 72,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 1,
-    borderRadius: radii.md,
+    borderRadius: radii.lg,
     backgroundColor: colors.card,
     borderWidth: 1,
     borderColor: colors.border,
@@ -311,21 +327,34 @@ const styles = StyleSheet.create({
   stripDayActive: { backgroundColor: colors.primary, borderColor: colors.primary },
   todayDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: 'transparent' },
   list: { gap: spacing.sm },
-  doseCard: { gap: spacing.sm, borderLeftWidth: 4 },
-  doseTop: { flexDirection: 'row', gap: spacing.sm, alignItems: 'flex-start' },
-  doseTime: { alignItems: 'flex-start', minWidth: 54 },
+  dayTitle: { flexDirection: 'row', alignItems: 'baseline', gap: spacing.xs, marginTop: spacing.xxs },
+  doseCard: { gap: spacing.sm },
+  doseTop: { flexDirection: 'row', gap: spacing.sm, alignItems: 'center' },
+  doseTime: { width: 64, paddingVertical: spacing.xs, borderRadius: radii.md, alignItems: 'center' },
+  period: { fontSize: 11, lineHeight: 14 },
+  doseInfo: { flex: 1, gap: 3 },
   menuButton: {
-    width: TOUCH_TARGET,
-    height: TOUCH_TARGET,
+    width: 40,
+    height: 40,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: radii.md,
-    backgroundColor: colors.primarySoft,
+    borderRadius: 20,
+    backgroundColor: colors.cream,
   },
-  doseMeta: { gap: 4 },
-  metaRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  weekCard: { gap: spacing.xs },
-  weekHeader: { flexDirection: 'row', alignItems: 'center', minHeight: TOUCH_TARGET - 8 },
-  weekRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, flexWrap: 'wrap' },
-  weekTime: { minWidth: 72 },
+  metaRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+  metaItem: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  weekCard: { paddingVertical: spacing.xxs },
+  weekRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingVertical: spacing.sm,
+    minHeight: TOUCH_TARGET + 8,
+  },
+  weekDay: { width: 46, paddingVertical: 4, borderRadius: radii.md, alignItems: 'center', backgroundColor: colors.cream },
+  weekDayToday: { backgroundColor: colors.primary },
+  weekDoses: { flex: 1, gap: 4 },
+  weekDose: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  weekDot: { width: 8, height: 8, borderRadius: 4 },
+  weekTime: { minWidth: 66 },
 });

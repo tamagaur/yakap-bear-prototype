@@ -28,7 +28,7 @@ export default function SplashGate() {
   return (
     <View style={styles.root}>
       <FadeIn style={styles.center}>
-        <BearMascot size={170} waving />
+        <BearMascot size={170} mood="happy" />
         <AppText variant="display" color={colors.primaryDark}>
           Yakap Bear
         </AppText>

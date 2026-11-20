@@ -4,7 +4,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/ui/AppText';
 import { STATUS_META } from '@/components/ui/Bits';
-import { Icon, type IconName } from '@/components/ui/Icon';
+import { Icon } from '@/components/ui/Icon';
 import { PressableScale } from '@/components/ui/PressableScale';
 import { colors, radii, spacing, TOUCH_TARGET } from '@/constants/theme';
 import { useCareData } from '@/hooks/useCareData';
@@ -15,20 +15,10 @@ import { getDayMarker, getOccurrencesForDate, toDateKey, type DayMarker } from '
 const WEEKDAYS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 const LEGEND: DoseStatus[] = ['taken', 'late', 'missed', 'skipped', 'away'];
 
-const MARKER_ICONS: Record<DoseStatus, IconName> = {
-  taken: 'check',
-  late: 'alert-triangle',
-  missed: 'x',
-  skipped: 'minus',
-  away: 'map-pin',
-  upcoming: 'clock',
-};
-
 function Marker({ marker }: { marker: DayMarker }) {
-  if (marker === 'none') return <View style={styles.markerSpace} />;
   return (
     <View style={styles.markerSpace}>
-      <Icon name={MARKER_ICONS[marker]} size={12} color={STATUS_META[marker].color} />
+      {marker === 'none' ? null : <View style={[styles.markerDot, { backgroundColor: STATUS_META[marker].color }]} />}
     </View>
   );
 }
@@ -57,20 +47,22 @@ export function MonthCalendar({ month, selected, now, onSelect, onMonthChange, m
     <View style={styles.wrap}>
       <View style={styles.header}>
         <PressableScale accessibilityLabel="Previous month" onPress={() => onMonthChange(addMonths(month, -1))} style={styles.nav}>
-          <Icon name="chevron-left" size={22} />
+          <Icon name="chevron-left" size={20} />
         </PressableScale>
-        <AppText variant="h3" align="center" style={styles.title} accessibilityRole="header">
-          {format(month, 'MMMM yyyy')}
-        </AppText>
+        <View style={styles.title}>
+          <AppText variant="h3" align="center" accessibilityRole="header">
+            {format(month, 'MMMM yyyy')}
+          </AppText>
+          {monthRate !== null ? (
+            <AppText variant="caption" color={colors.primaryDark} align="center">
+              {monthRate}% taken
+            </AppText>
+          ) : null}
+        </View>
         <PressableScale accessibilityLabel="Next month" onPress={() => onMonthChange(addMonths(month, 1))} style={styles.nav}>
-          <Icon name="chevron-right" size={22} />
+          <Icon name="chevron-right" size={20} />
         </PressableScale>
       </View>
-      {monthRate !== null ? (
-        <AppText variant="caption" color={colors.primaryDark} align="center">
-          {monthRate}% of due doses confirmed this month
-        </AppText>
-      ) : null}
 
       <View style={styles.grid}>
         {WEEKDAYS.map((day, index) => (
@@ -95,11 +87,16 @@ export function MonthCalendar({ month, selected, now, onSelect, onMonthChange, m
                     haptics.tap();
                     onSelect(date);
                   }}
-                  style={[styles.day, isToday && styles.today, isSelected && styles.selected]}
+                  style={styles.dayPress}
                 >
-                  <AppText variant="smallBold" color={isSelected ? colors.primaryDark : colors.text}>
-                    {format(date, 'd')}
-                  </AppText>
+                  <View style={[styles.day, isToday && styles.today, isSelected && styles.selected]}>
+                    <AppText
+                      variant="smallBold"
+                      color={isSelected ? colors.textOnPrimary : isToday ? colors.primaryDark : colors.text}
+                    >
+                      {format(date, 'd')}
+                    </AppText>
+                  </View>
                   <Marker marker={marker} />
                 </Pressable>
               ) : null}
@@ -111,7 +108,7 @@ export function MonthCalendar({ month, selected, now, onSelect, onMonthChange, m
       <View style={styles.legend}>
         {LEGEND.map((status) => (
           <View key={status} style={styles.legendItem}>
-            <Icon name={MARKER_ICONS[status]} size={13} color={STATUS_META[status].color} />
+            <View style={[styles.legendDot, { backgroundColor: STATUS_META[status].color }]} />
             <AppText variant="caption" color={colors.textMuted}>
               {STATUS_META[status].label}
             </AppText>
@@ -125,22 +122,37 @@ export function MonthCalendar({ month, selected, now, onSelect, onMonthChange, m
 const styles = StyleSheet.create({
   wrap: { gap: spacing.xs },
   header: { flexDirection: 'row', alignItems: 'center' },
-  nav: { width: TOUCH_TARGET, height: TOUCH_TARGET, alignItems: 'center', justifyContent: 'center' },
-  title: { flex: 1 },
-  grid: { flexDirection: 'row', flexWrap: 'wrap' },
-  cell: { width: `${100 / 7}%`, alignItems: 'center', justifyContent: 'center', minHeight: 30 },
-  day: {
-    width: '94%',
-    minHeight: 48,
-    borderRadius: radii.sm,
+  nav: {
+    width: TOUCH_TARGET - 8,
+    height: TOUCH_TARGET - 8,
+    borderRadius: radii.pill,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1.5,
-    borderColor: 'transparent',
+    backgroundColor: colors.cream,
   },
-  today: { backgroundColor: colors.primarySoft },
-  selected: { borderColor: colors.primary },
-  markerSpace: { height: 14, alignItems: 'center', justifyContent: 'center' },
-  legend: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', columnGap: spacing.sm, rowGap: 4, marginTop: spacing.xxs },
-  legendItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  title: { flex: 1 },
+  grid: { flexDirection: 'row', flexWrap: 'wrap' },
+  cell: { width: `${100 / 7}%`, alignItems: 'center', justifyContent: 'center', minHeight: 28 },
+  dayPress: { alignItems: 'center', justifyContent: 'center', minHeight: 50, width: '100%', paddingTop: 2 },
+  day: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  today: { borderWidth: 2, borderColor: colors.primary },
+  selected: { backgroundColor: colors.primary, borderColor: colors.primary },
+  markerSpace: { height: 10, alignItems: 'center', justifyContent: 'center' },
+  markerDot: { width: 6, height: 6, borderRadius: 3 },
+  legend: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    columnGap: spacing.sm,
+    rowGap: 4,
+    marginTop: spacing.xxs,
+  },
+  legendItem: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  legendDot: { width: 8, height: 8, borderRadius: 4 },
 });

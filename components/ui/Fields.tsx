@@ -7,6 +7,7 @@ import { Icon } from '@/components/ui/Icon';
 import { PressableScale } from '@/components/ui/PressableScale';
 import { colors, fonts, radii, spacing, TOUCH_TARGET } from '@/constants/theme';
 import { haptics } from '@/services/haptics';
+import { formatPhPhone, PH_PREFIX } from '@/utils/phone';
 
 function FieldShell({
   label,
@@ -82,6 +83,35 @@ export function TextField({ label, error, hint, secure, style, onFocus, onBlur, 
         ) : null}
       </View>
     </FieldShell>
+  );
+}
+
+/** Philippine mobile number input. "+63" is always there and the number formats as you type. */
+export function PhoneField({
+  label,
+  value,
+  onChangeText,
+  error,
+  hint,
+}: {
+  label: string;
+  value: string;
+  onChangeText: (formatted: string) => void;
+  error?: string;
+  hint?: string;
+}) {
+  return (
+    <TextField
+      label={label}
+      value={value ? formatPhPhone(value) : PH_PREFIX}
+      onChangeText={(text) => onChangeText(formatPhPhone(text))}
+      error={error}
+      hint={hint}
+      keyboardType="phone-pad"
+      autoComplete="tel"
+      textContentType="telephoneNumber"
+      placeholder="+63 912 345 6789"
+    />
   );
 }
 

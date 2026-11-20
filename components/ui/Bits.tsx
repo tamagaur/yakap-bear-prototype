@@ -1,17 +1,18 @@
-import { useEffect, useRef, type ReactNode } from 'react';
-import { Animated, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { Animated, Easing, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
+import Svg, { Circle } from 'react-native-svg';
 
-import { BearMascot } from '@/components/bear/BearMascot';
+import { BearMascot, type BearMood } from '@/components/bear/BearMascot';
 import { AppText } from '@/components/ui/AppText';
+import { BottomSheet } from '@/components/ui/BottomSheet';
 import { Button } from '@/components/ui/Button';
-import { Card } from '@/components/ui/Card';
 import { Icon, type IconName } from '@/components/ui/Icon';
 import { PressableScale } from '@/components/ui/PressableScale';
 import { colors, motion, radii, spacing, TOUCH_TARGET } from '@/constants/theme';
 import { useReducedMotion } from '@/hooks/useReducedMotion';
 import type { DoseStatus } from '@/types/models';
 
-type Tone = 'teal' | 'honey' | 'coral' | 'brown' | 'blue' | 'neutral';
+export type Tone = 'teal' | 'honey' | 'coral' | 'brown' | 'blue' | 'neutral';
 
 const toneColors: Record<Tone, { background: string; foreground: string }> = {
   teal: { background: colors.primarySoft, foreground: colors.primaryDark },
@@ -99,7 +100,7 @@ export function SectionHeader({
 }) {
   return (
     <View style={styles.sectionHeader}>
-      <AppText variant="h3" accessibilityRole="header" style={styles.flex}>
+      <AppText variant="title" accessibilityRole="header" style={[styles.flex, styles.sectionTitle]}>
         {title}
       </AppText>
       {action && onAction ? (
@@ -167,27 +168,173 @@ export function EmptyState({
   message,
   actionLabel,
   onAction,
-  mood = 'idle',
+  mood = 'comfort',
+  size = 110,
 }: {
   title: string;
-  message: string;
+  message?: string;
   actionLabel?: string;
   onAction?: () => void;
-  mood?: 'idle' | 'sleepy';
+  mood?: BearMood;
+  size?: number;
 }) {
   return (
-    <Card style={styles.empty}>
-      <BearMascot size={96} mood={mood} />
+    <View style={styles.empty}>
+      <BearMascot size={size} mood={mood} />
       <AppText variant="h3" align="center">
         {title}
       </AppText>
-      <AppText variant="small" color={colors.textMuted} align="center">
-        {message}
-      </AppText>
-      {actionLabel && onAction ? (
-        <Button label={actionLabel} onPress={onAction} compact containerStyle={styles.emptyAction} />
+      {message ? (
+        <AppText variant="small" color={colors.textMuted} align="center" style={styles.emptyMessage}>
+          {message}
+        </AppText>
       ) : null}
-    </Card>
+      {actionLabel && onAction ? (
+        <Button label={actionLabel} icon="plus" onPress={onAction} compact containerStyle={styles.emptyAction} />
+      ) : null}
+    </View>
+  );
+}
+
+/** A compact status label with a colored dot, used instead of long banners. */
+export function StatusChip({
+  label,
+  tone = 'teal',
+  icon,
+  onPress,
+}: {
+  label: string;
+  tone?: Tone;
+  icon?: IconName;
+  onPress?: () => void;
+}) {
+  const palette = toneColors[tone];
+  const content = (
+    <>
+      {icon ? (
+        <Icon name={icon} size={13} color={palette.foreground} />
+      ) : (
+        <View style={[styles.chipDot, { backgroundColor: palette.foreground }]} />
+      )}
+      <AppText variant="caption" color={palette.foreground} numberOfLines={1}>
+        {label}
+      </AppText>
+      {onPress ? <Icon name="info" size={13} color={palette.foreground} /> : null}
+    </>
+  );
+  if (!onPress) return <View style={[styles.chip, { backgroundColor: palette.background }]}>{content}</View>;
+  return (
+    <PressableScale
+      accessibilityLabel={`${label}. More information`}
+      onPress={onPress}
+      hitSlop={8}
+      style={[styles.chip, { backgroundColor: palette.background }]}
+    >
+      {content}
+    </PressableScale>
+  );
+}
+
+/** Keeps important details one tap away instead of on screen all the time. */
+export function InfoLink({
+  label,
+  title,
+  children,
+  tone = 'honey',
+  icon,
+}: {
+  label: string;
+  title: string;
+  children: ReactNode;
+  tone?: Tone;
+  icon?: IconName;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <StatusChip label={label} tone={tone} icon={icon} onPress={() => setOpen(true)} />
+      <BottomSheet visible={open} onClose={() => setOpen(false)} title={title}>
+        {children}
+      </BottomSheet>
+    </>
+  );
+}
+
+/** One row in an info sheet: an icon and a short line of text. */
+export function InfoPoint({ icon, text, tone = 'teal' }: { icon: IconName; text: string; tone?: Tone }) {
+  return (
+    <View style={styles.infoPoint}>
+      <IconBadge icon={icon} tone={tone} size={34} />
+      <AppText variant="small" style={styles.flex}>
+        {text}
+      </AppText>
+    </View>
+  );
+}
+
+const AnimatedCircle = Animated.createAnimatedComponent(Circle);
+
+/** Circular progress with a label in the middle. */
+export function ProgressRing({
+  value,
+  size = 72,
+  stroke = 8,
+  color = colors.primary,
+  track = colors.creamDeep,
+  children,
+  label,
+}: {
+  value: number;
+  size?: number;
+  stroke?: number;
+  color?: string;
+  track?: string;
+  children?: ReactNode;
+  label?: string;
+}) {
+  const reducedMotion = useReducedMotion();
+  const clamped = Math.max(0, Math.min(1, value));
+  const progress = useRef(new Animated.Value(0)).current;
+  const radius = (size - stroke) / 2;
+  const circumference = 2 * Math.PI * radius;
+
+  useEffect(() => {
+    const animation = Animated.timing(progress, {
+      toValue: clamped,
+      duration: reducedMotion ? 0 : 700,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: false,
+    });
+    animation.start();
+    return () => animation.stop();
+  }, [clamped, progress, reducedMotion]);
+
+  const dashOffset = progress.interpolate({ inputRange: [0, 1], outputRange: [circumference, 0] });
+
+  return (
+    <View
+      accessibilityRole="progressbar"
+      accessibilityLabel={label}
+      accessibilityValue={{ min: 0, max: 100, now: Math.round(clamped * 100) }}
+      style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }}
+    >
+      <Svg width={size} height={size} style={StyleSheet.absoluteFill}>
+        <Circle cx={size / 2} cy={size / 2} r={radius} stroke={track} strokeWidth={stroke} fill="none" />
+        <AnimatedCircle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          stroke={color}
+          strokeWidth={stroke}
+          strokeLinecap="round"
+          fill="none"
+          strokeDasharray={`${circumference} ${circumference}`}
+          strokeDashoffset={dashOffset}
+          transform={`rotate(-90 ${size / 2} ${size / 2})`}
+        />
+      </Svg>
+      {children}
+    </View>
   );
 }
 
@@ -227,7 +374,7 @@ export function Notice({
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
-  iconBadge: { borderRadius: radii.md, alignItems: 'center', justifyContent: 'center' },
+  iconBadge: { borderRadius: radii.pill, alignItems: 'center', justifyContent: 'center' },
   tag: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -239,7 +386,8 @@ const styles = StyleSheet.create({
   },
   progressTrack: { height: 10, borderRadius: 5, backgroundColor: colors.creamDeep, overflow: 'hidden' },
   progressFill: { height: '100%', borderRadius: 5 },
-  sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginTop: spacing.xs },
+  sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginTop: spacing.sm },
+  sectionTitle: { fontSize: 17 },
   listRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -248,8 +396,20 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.xs,
   },
   divider: { height: 1, backgroundColor: colors.border },
-  empty: { alignItems: 'center', gap: spacing.xs, paddingVertical: spacing.xl },
+  empty: { alignItems: 'center', gap: spacing.xs, paddingVertical: spacing.lg, paddingHorizontal: spacing.md },
+  emptyMessage: { maxWidth: 280 },
   emptyAction: { marginTop: spacing.xs },
+  chip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: radii.pill,
+  },
+  chipDot: { width: 7, height: 7, borderRadius: 4 },
+  infoPoint: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   notice: { flexDirection: 'row', gap: spacing.xs, padding: spacing.sm, borderRadius: radii.md },
   noticeBody: { flex: 1, gap: 2 },
 });

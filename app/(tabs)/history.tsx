@@ -5,10 +5,10 @@ import { StyleSheet, View } from 'react-native';
 
 import { MonthCalendar } from '@/components/dose/MonthCalendar';
 import { AppText } from '@/components/ui/AppText';
-import { Divider, EmptyState, IconBadge, Notice, STATUS_META, StatusPill } from '@/components/ui/Bits';
+import { Divider, EmptyState, IconBadge, Notice, ProgressRing, STATUS_META, StatusPill } from '@/components/ui/Bits';
 import { BottomSheet } from '@/components/ui/BottomSheet';
 import { Button } from '@/components/ui/Button';
-import { Card, FadeIn } from '@/components/ui/Card';
+import { Card, SwapIn } from '@/components/ui/Card';
 import { TextField } from '@/components/ui/Fields';
 import { Icon } from '@/components/ui/Icon';
 import { Screen, ScreenHeader } from '@/components/ui/Screen';
@@ -51,21 +51,21 @@ function CorrectionSheet({ dose, onClose }: { dose: DoseOccurrence | null; onClo
 
   const submit = () => {
     if (!dose) return;
-    if (!reason.trim()) return setError('Please add a short reason. It is kept in the audit trail.');
+    if (!reason.trim()) return setError('Please add a short reason.');
     const takenAt = combineDateTime(dose.date, time);
-    if (choice === 'taken' && isAfter(takenAt, new Date())) return setError('The time taken cannot be in the future.');
+    if (choice === 'taken' && isAfter(takenAt, new Date())) return setError("That time hasn't happened yet.");
     correctDose(dose, { type: choice as DoseEvent['type'], takenAt: choice === 'taken' ? takenAt : undefined, reason });
     onClose();
-    toast('Log corrected. The original entry was kept.');
+    toast('Log corrected.');
   };
 
   return (
     <BottomSheet
       visible={Boolean(dose)}
       onClose={onClose}
-      title="Correct this log"
+      title="Correct log"
       subtitle={dose ? `${dose.medicationName} · ${formatTime(dose.time)}` : undefined}
-      footer={<Button label="Save correction" onPress={submit} />}
+      footer={<Button label="Save" onPress={submit} />}
     >
       <Segmented
         label="Corrected status"
@@ -79,18 +79,18 @@ function CorrectionSheet({ dose, onClose }: { dose: DoseOccurrence | null; onClo
       />
       {choice === 'taken' ? <TimeField label="Time taken" value={time} onChange={setTime} /> : null}
       <TextField
-        label="Reason for correction"
+        label="Reason"
         value={reason}
         onChangeText={(value) => {
           setReason(value);
           setError(undefined);
         }}
         error={error}
-        placeholder="For example, confirmed with Lola by phone"
+        placeholder="e.g. Confirmed with Lola by phone"
         multiline
         maxLength={140}
       />
-      <Notice icon="file-text" message="Corrections are added to the record. Earlier entries are never erased." />
+      <Notice icon="file-text" message="The original entry is always kept." />
     </BottomSheet>
   );
 }
@@ -104,40 +104,38 @@ function TimelineItem({ dose, onCorrect }: { dose: DoseOccurrence; onCorrect: ()
       <View style={styles.timelineTop}>
         <IconBadge icon={meta.icon} tone={meta.tone} size={38} />
         <View style={styles.flex}>
-          <AppText variant="title">{dose.medicationName}</AppText>
+          <AppText variant="title" numberOfLines={1}>
+            {dose.medicationName}
+          </AppText>
           <AppText variant="small" color={colors.textMuted}>
             {formatTime(dose.time)} · {dose.doseLabel}
           </AppText>
-          <StatusPill status={dose.status} confirmedLate={dose.confirmedLate} />
         </View>
+        <StatusPill status={dose.status} confirmedLate={dose.confirmedLate} />
       </View>
 
       {dose.events.length > 0 ? (
         <View style={styles.audit}>
           {dose.events.map((event) => (
             <View key={event.id} style={styles.auditRow}>
-              <Icon name={event.source === 'correction' ? 'edit-3' : 'check'} size={14} color={colors.textMuted} />
+              <Icon name={event.source === 'correction' ? 'edit-3' : 'check'} size={13} color={colors.textMuted} />
               <View style={styles.flex}>
-                <AppText variant="small" color={colors.textMuted}>
+                <AppText variant="caption" color={colors.textMuted}>
                   {describeEvent(event)}
                 </AppText>
                 {event.reason ? (
                   <AppText variant="caption" color={colors.textMuted}>
-                    Reason: {event.reason}
+                    “{event.reason}”
                   </AppText>
                 ) : null}
               </View>
             </View>
           ))}
         </View>
-      ) : dose.status === 'missed' ? (
-        <AppText variant="small" color={colors.textMuted}>
-          No confirmation was recorded for this dose.
-        </AppText>
       ) : null}
 
       {canCorrect ? (
-        <Button compact variant="ghost" icon="edit-2" label="Correct this log" onPress={onCorrect} containerStyle={styles.correct} />
+        <Button compact variant="ghost" icon="edit-2" label="Correct" onPress={onCorrect} containerStyle={styles.correct} />
       ) : null}
     </View>
   );
@@ -170,29 +168,33 @@ export default function HistoryScreen() {
   }, [data, month, now]);
 
   const hasAnyHistory = data.schedules.length > 0;
+  const weekValue = week.due > 0 ? week.confirmed / week.due : 0;
 
   return (
-    <Screen tabbed header={<ScreenHeader title="History" showBack={false} />}>
+    <Screen tabbed header={<ScreenHeader large title="History" />}>
       {!hasAnyHistory ? (
         <EmptyState
           title="No history yet"
-          message="Once doses are scheduled and confirmed, their story will appear here."
-          actionLabel="Add a medication"
+          message="Taken doses will show up here."
+          actionLabel="Add medication"
           onAction={() => router.push('/medication/edit')}
         />
       ) : (
         <>
           <Card style={styles.summary}>
-            <IconBadge icon="heart" tone="coral" />
-            <View style={styles.flex}>
-              <AppText variant="title">
-                {week.due === 0
-                  ? 'No doses have come due this week yet.'
-                  : `${week.confirmed} out of ${week.due} ${week.due === 1 ? 'dose' : 'doses'} confirmed this week.`}
+            <ProgressRing value={weekValue} size={64} stroke={7} label="Doses taken this week">
+              <AppText variant="smallBold" color={colors.primaryDark}>
+                {week.due > 0 ? `${Math.round(weekValue * 100)}%` : '–'}
               </AppText>
+            </ProgressRing>
+            <View style={styles.flex}>
+              <AppText variant="caption" color={colors.textMuted}>
+                This week
+              </AppText>
+              <AppText variant="h3">{week.due === 0 ? 'Nothing due yet' : `${week.confirmed}/${week.due} doses taken`}</AppText>
               {week.away > 0 ? (
-                <AppText variant="small" color={colors.textMuted}>
-                  {week.away} during Away mode, not counted.
+                <AppText variant="caption" color={colors.textMuted}>
+                  {week.away} away, not counted
                 </AppText>
               ) : null}
             </View>
@@ -209,19 +211,15 @@ export default function HistoryScreen() {
             />
           </Card>
 
-          <FadeIn key={selectedKey} style={styles.dayBlock}>
-            <View>
-              <AppText variant="eyebrow" color={colors.primaryDark}>
-                {format(selected, 'EEEE')}
+          <SwapIn swapKey={selectedKey} style={styles.dayBlock}>
+            <View style={styles.dayTitle}>
+              <AppText variant="h3">{format(selected, 'EEEE')}</AppText>
+              <AppText variant="small" color={colors.textMuted}>
+                {format(selected, 'MMM d, yyyy')}
               </AppText>
-              <AppText variant="h2">{format(selected, 'MMMM d, yyyy')}</AppText>
             </View>
             {dayDoses.length === 0 ? (
-              <Card>
-                <AppText color={colors.textMuted} align="center">
-                  No doses were scheduled on this day.
-                </AppText>
-              </Card>
+              <EmptyState mood="sleepy" size={84} title="No doses this day" />
             ) : (
               <Card style={styles.timeline}>
                 {dayDoses.map((dose, index) => (
@@ -232,7 +230,7 @@ export default function HistoryScreen() {
                 ))}
               </Card>
             )}
-          </FadeIn>
+          </SwapIn>
         </>
       )}
 
@@ -243,12 +241,13 @@ export default function HistoryScreen() {
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
-  summary: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  summary: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   dayBlock: { gap: spacing.sm },
+  dayTitle: { flexDirection: 'row', alignItems: 'baseline', gap: spacing.xs },
   timeline: { paddingVertical: spacing.xxs },
   timelineItem: { paddingVertical: spacing.sm, gap: spacing.xs },
-  timelineTop: { flexDirection: 'row', gap: spacing.sm, alignItems: 'flex-start' },
-  audit: { gap: 6, padding: spacing.xs, borderRadius: radii.sm, backgroundColor: colors.cream },
+  timelineTop: { flexDirection: 'row', gap: spacing.sm, alignItems: 'center' },
+  audit: { gap: 4, padding: spacing.xs, borderRadius: radii.sm, backgroundColor: colors.cream, marginLeft: 50 },
   auditRow: { flexDirection: 'row', gap: 6, alignItems: 'flex-start' },
-  correct: { alignSelf: 'flex-start' },
+  correct: { alignSelf: 'flex-start', marginLeft: 38 },
 });

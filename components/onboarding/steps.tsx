@@ -4,7 +4,7 @@ import { StyleSheet, View } from 'react-native';
 
 import { ContactFormSheet } from '@/components/ContactFormSheet';
 import { AppText } from '@/components/ui/AppText';
-import { Divider, ListRow, Notice, Tag } from '@/components/ui/Bits';
+import { Divider, EmptyState, ListRow, Tag } from '@/components/ui/Bits';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { SelectField, TextField } from '@/components/ui/Fields';
@@ -15,6 +15,7 @@ import { useCareData } from '@/hooks/useCareData';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useCareStore } from '@/stores/careStore';
 import type { FamilyContact } from '@/types/models';
+import { displayPhone } from '@/utils/phone';
 import { describeRepeatDays, formatTime, toDateKey } from '@/utils/schedule';
 
 export interface WhoFormHandle {
@@ -33,6 +34,7 @@ export function useWhoForm() {
   const [timeZone, setTimeZone] = useState(data.recipient?.timeZone ?? getDeviceTimeZone());
   const [notes, setNotes] = useState(data.recipient?.notes ?? '');
   const [errors, setErrors] = useState<WhoErrors>({});
+  const [showMore, setShowMore] = useState(false);
 
   const clearError = (field: keyof WhoErrors) => setErrors((current) => ({ ...current, [field]: undefined }));
 
@@ -53,16 +55,23 @@ export function useWhoForm() {
   const fields = (
     <View style={styles.form}>
       <TextField label="Your name" value={caregiverName} onChangeText={(value) => { setCaregiverName(value); clearError('caregiverName'); }} error={errors.caregiverName} placeholder="Ana Santos" autoCapitalize="words" />
-      <TextField label="Their preferred name" value={preferredName} onChangeText={(value) => { setPreferredName(value); clearError('preferredName'); }} error={errors.preferredName} placeholder="Lola Rosa" autoCapitalize="words" />
-      <SelectField label="Relationship to you" value={relationship} options={RELATIONSHIP_OPTIONS} onChange={(value) => { setRelationship(value); clearError('relationship'); }} error={errors.relationship} />
-      <SelectField
-        label="Time zone"
-        value={timeZone}
-        options={getTimeZoneOptions()}
-        onChange={setTimeZone}
-        hint="Reminders follow this phone's clock."
-      />
-      <TextField label="Caregiver notes (optional)" value={notes} onChangeText={setNotes} placeholder="Anything helpful to remember" multiline maxLength={200} />
+      <TextField label="Their name" value={preferredName} onChangeText={(value) => { setPreferredName(value); clearError('preferredName'); }} error={errors.preferredName} placeholder="Lola Rosa" autoCapitalize="words" />
+      <SelectField label="They are your…" value={relationship} options={RELATIONSHIP_OPTIONS} onChange={(value) => { setRelationship(value); clearError('relationship'); }} error={errors.relationship} />
+      {showMore ? (
+        <>
+          <SelectField label="Time zone" value={timeZone} options={getTimeZoneOptions()} onChange={setTimeZone} />
+          <TextField label="Notes (optional)" value={notes} onChangeText={setNotes} placeholder="Anything helpful to remember" multiline maxLength={200} />
+        </>
+      ) : (
+        <Button
+          compact
+          variant="ghost"
+          icon="sliders"
+          label="More options"
+          onPress={() => setShowMore(true)}
+          containerStyle={styles.more}
+        />
+      )}
     </View>
   );
 
@@ -98,11 +107,11 @@ export function DosesStep() {
           })}
         </Card>
       ) : (
-        <Notice icon="clipboard" message="Add each medication exactly as it was prescribed." />
+        <EmptyState mood="comfort" size={96} title="No medicines yet" />
       )}
       <Button
-        label={medications.length > 0 ? 'Add another medication' : 'Add a medication'}
-        variant="secondary"
+        label={medications.length > 0 ? 'Add another' : 'Add medication'}
+        variant={medications.length > 0 ? 'secondary' : 'primary'}
         icon="plus"
         onPress={() => router.push('/medication/edit')}
       />
@@ -116,14 +125,11 @@ export function VoiceStep({ onUnsavedChange }: { onUnsavedChange: (hasUnsavedTak
     <View style={styles.form}>
       <VoiceRecorderCard onUnsavedChange={onUnsavedChange} />
       {data.recordings.length > 0 ? (
-        <Card style={styles.saved}>
-          <Tag label="Saved" tone="teal" icon="check-circle" />
+        <View style={styles.saved}>
           {data.recordings.map((recording) => (
-            <AppText key={recording.id} variant="bodyMedium">
-              {recording.name}
-            </AppText>
+            <Tag key={recording.id} label={recording.name} tone="teal" icon="check-circle" />
           ))}
-        </Card>
+        </View>
       ) : null}
     </View>
   );
@@ -144,7 +150,7 @@ export function ContactsStep() {
               <ListRow
                 icon="user"
                 title={contact.name}
-                subtitle={`${contact.phone} · ${contact.relationship}`}
+                subtitle={`${displayPhone(contact.phone)} · ${contact.relationship}`}
                 onPress={() => {
                   setEditing(contact);
                   setSheetOpen(true);
@@ -155,7 +161,7 @@ export function ContactsStep() {
         </Card>
       ) : null}
       <Button
-        label="Add a contact"
+        label="Add contact"
         variant="secondary"
         icon="plus"
         onPress={() => {
@@ -163,8 +169,8 @@ export function ContactsStep() {
           setSheetOpen(true);
         }}
       />
-      <AppText variant="small" color={colors.textMuted} align="center">
-        Contacts are only used when you choose to text them about an unconfirmed dose or a bear issue.
+      <AppText variant="caption" color={colors.textMuted} align="center">
+        Only texted when you choose to.
       </AppText>
       <ContactFormSheet visible={sheetOpen} contact={editing} onClose={() => setSheetOpen(false)} />
     </View>
@@ -174,5 +180,6 @@ export function ContactsStep() {
 const styles = StyleSheet.create({
   form: { gap: spacing.md },
   list: { paddingVertical: spacing.xxs },
-  saved: { gap: spacing.xs },
+  saved: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs },
+  more: { alignSelf: 'flex-start', marginLeft: -spacing.sm },
 });

@@ -2,6 +2,7 @@ import { useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Animated, Easing, Linking, StyleSheet, View } from 'react-native';
 
+import { BearMascot } from '@/components/bear/BearMascot';
 import { DoseAssignList } from '@/components/voice/DoseAssignList';
 import { Waveform, seededBars } from '@/components/voice/Waveform';
 import { AppText } from '@/components/ui/AppText';
@@ -48,13 +49,14 @@ function RecordButton({ recording, onPress, disabled }: { recording: boolean; on
   return (
     <View style={styles.recordWrap}>
       <Animated.View style={[styles.pulse, { opacity: recording ? opacity : 0, transform: [{ scale }] }]} />
+      <View style={styles.recordRing} />
       <PressableScale
         accessibilityLabel={recording ? 'Stop recording' : 'Start recording'}
         disabled={disabled}
         onPress={onPress}
         style={[styles.recordButton, disabled && styles.recordDisabled]}
       >
-        <Icon name={recording ? 'square' : 'mic'} size={30} color={colors.textOnPrimary} />
+        <Icon name={recording ? 'square' : 'mic'} size={32} color={colors.textOnPrimary} />
       </PressableScale>
     </View>
   );
@@ -63,8 +65,10 @@ function RecordButton({ recording, onPress, disabled }: { recording: boolean; on
 export function VoiceRecorderCard({
   onSaved,
   onUnsavedChange,
+  showMascot = true,
 }: {
   onSaved?: () => void;
+  showMascot?: boolean;
   /** Reports whether a finished take is waiting to be saved. */
   onUnsavedChange?: (hasUnsavedTake: boolean) => void;
 }) {
@@ -96,7 +100,7 @@ export function VoiceRecorderCard({
 
   const save = async () => {
     if (!recorder.tempUri) return;
-    if (!name.trim()) return setNameError('Please give this message a name.');
+    if (!name.trim()) return setNameError('Please add a name.');
     setNameError(undefined);
     setSaving(true);
     voicePlayback.stop();
@@ -111,10 +115,10 @@ export function VoiceRecorderCard({
       recorder.markSaved();
       setName('');
       setAssigned([]);
-      toast('Voice reminder saved.');
+      toast('Message saved.');
       onSaved?.();
     } catch {
-      toast('The recording could not be saved. Please check your storage and try again.', 'error');
+      toast("Couldn't save. Check your storage and try again.", 'error');
     } finally {
       setSaving(false);
     }
@@ -124,22 +128,27 @@ export function VoiceRecorderCard({
 
   return (
     <Card style={styles.card}>
-      <AppText variant="eyebrow" color={colors.primaryDark} align="center">
-        New recording
-      </AppText>
-      <AppText variant="h2" align="center">
-        Record a little care
-      </AppText>
-      <AppText variant="small" color={colors.textMuted} align="center">
-        Your voice plays at dose time. Keep it short and warm.
-      </AppText>
+      {showMascot ? (
+        <BearMascot
+          size={isRecorded ? 92 : 112}
+          mood={isRecording ? 'listening' : isRecorded ? 'happy' : 'idle'}
+          style={styles.mascot}
+        />
+      ) : null}
 
       <Waveform
         levels={isRecording ? recorder.levels : IDLE_BARS}
         active={isRecording}
+        idle={!isRecording && !isRecorded}
         progress={isRecorded ? previewProgress : undefined}
       />
-      <AppText variant="h3" align="center" accessibilityLiveRegion="polite">
+      <AppText
+        variant="h3"
+        align="center"
+        color={isRecording ? colors.coralDeep : colors.text}
+        accessibilityLiveRegion="polite"
+        style={styles.timer}
+      >
         {remainingLabel}
       </AppText>
 
@@ -147,8 +156,8 @@ export function VoiceRecorderCard({
         <Notice
           icon="mic-off"
           tone="coral"
-          title="Microphone access is off"
-          message="Allow microphone access in your phone settings to record a message."
+          title="Microphone is off"
+          message="Allow it in Settings to record."
         >
           <Button compact variant="secondary" label="Open settings" onPress={() => void Linking.openSettings()} />
         </Notice>
@@ -157,7 +166,7 @@ export function VoiceRecorderCard({
         <Notice icon="alert-circle" tone="coral" message={recorder.errorMessage} />
       ) : null}
       {isFull && !isRecorded ? (
-        <Notice icon="info" tone="honey" message={`You can keep up to ${MAX_SAVED_RECORDINGS} messages. Delete one to record another.`} />
+        <Notice icon="info" tone="honey" message={`${MAX_SAVED_RECORDINGS} messages max. Delete one to record more.`} />
       ) : null}
 
       {isRecorded ? (
@@ -171,19 +180,19 @@ export function VoiceRecorderCard({
               <Icon name={previewPlaying ? 'pause' : 'play'} size={22} color={colors.textOnPrimary} />
             </PressableScale>
             <View style={styles.flex}>
-              <AppText variant="title">Preview recording</AppText>
+              <AppText variant="title">Your message</AppText>
               <AppText variant="small" color={colors.textMuted}>
                 {formatDuration(recorder.durationMs)}
               </AppText>
             </View>
-            <Button compact variant="ghost" icon="rotate-ccw" label="Rerecord" onPress={recorder.reset} />
+            <Button compact variant="ghost" icon="rotate-ccw" label="Redo" onPress={recorder.reset} />
           </View>
           {playback.status === 'error' && previewActive ? (
             <Notice icon="alert-circle" tone="coral" message={playback.errorMessage ?? 'This take could not be played.'} />
           ) : null}
 
           <TextField
-            label="Message name"
+            label="Name"
             value={name}
             onChangeText={(value) => {
               setName(value);
@@ -194,10 +203,10 @@ export function VoiceRecorderCard({
             maxLength={40}
           />
           <View style={styles.assign}>
-            <AppText variant="title">Assign to a dose</AppText>
+            <AppText variant="smallBold">Play at</AppText>
             <DoseAssignList options={doseOptions} selected={assigned} onChange={setAssigned} />
           </View>
-          <Button label="Save reminder" icon="check" onPress={() => void save()} loading={saving} />
+          <Button label="Save message" icon="check" onPress={() => void save()} loading={saving} />
         </View>
       ) : (
         <View style={styles.center}>
@@ -206,8 +215,8 @@ export function VoiceRecorderCard({
             disabled={recorder.phase === 'preparing' || isFull}
             onPress={() => void (isRecording ? recorder.stop() : recorder.start())}
           />
-          <AppText variant="caption" color={colors.textMuted} align="center">
-            {isRecording ? 'Tap to stop' : 'Tap to record, up to 30 seconds'}
+          <AppText variant="smallBold" color={isRecording ? colors.coralDeep : colors.textMuted} align="center">
+            {isRecording ? 'Listening… tap to stop' : 'Tap to record'}
           </AppText>
         </View>
       )}
@@ -216,15 +225,25 @@ export function VoiceRecorderCard({
 }
 
 const styles = StyleSheet.create({
-  card: { gap: spacing.xs, padding: spacing.lg },
+  card: { gap: spacing.xs, padding: spacing.lg, alignItems: 'stretch' },
+  mascot: { alignSelf: 'center' },
+  timer: { fontVariant: ['tabular-nums'] },
   flex: { flex: 1 },
   center: { alignItems: 'center', gap: spacing.xs, marginTop: spacing.xs },
-  recordWrap: { width: 92, height: 92, alignItems: 'center', justifyContent: 'center' },
-  pulse: { position: 'absolute', width: 76, height: 76, borderRadius: 38, backgroundColor: colors.coral },
+  recordWrap: { width: 112, height: 112, alignItems: 'center', justifyContent: 'center' },
+  pulse: { position: 'absolute', width: 84, height: 84, borderRadius: 42, backgroundColor: colors.coral },
+  recordRing: {
+    position: 'absolute',
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    borderWidth: 3,
+    borderColor: colors.coralSoft,
+  },
   recordButton: {
-    width: 76,
-    height: 76,
-    borderRadius: 38,
+    width: 84,
+    height: 84,
+    borderRadius: 42,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.coralDeep,
@@ -237,8 +256,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.xs,
     padding: spacing.xs,
-    borderRadius: radii.md,
-    backgroundColor: colors.brownSoft,
+    borderRadius: radii.pill,
+    backgroundColor: colors.primarySoft,
   },
   previewButton: {
     width: 48,

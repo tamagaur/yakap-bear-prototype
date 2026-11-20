@@ -5,7 +5,7 @@ import { StyleSheet, View } from 'react-native';
 
 import { DoseActionSheet } from '@/components/dose/DoseActionSheet';
 import { AppText } from '@/components/ui/AppText';
-import { EmptyState, IconBadge, Notice } from '@/components/ui/Bits';
+import { EmptyState, IconBadge } from '@/components/ui/Bits';
 import { BottomSheet } from '@/components/ui/BottomSheet';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
@@ -47,20 +47,16 @@ export default function AlertsScreen() {
         toast('This device cannot open a text message.', 'error');
       } else if (result === 'opened') {
         logActivity('sms_opened', `Text prepared for ${contact.name}. Delivery is not tracked.`);
-        toast('Messages app opened. Yakap Bear cannot see if it was sent.', 'info');
+        toast("Messages opened. We can't see if it was sent.", 'info');
       }
     });
   };
 
   return (
     <Screen header={<ScreenHeader title="Care alerts" />}>
-      <Notice
-        icon="message-square"
-        message="Yakap Bear does not text anyone automatically. You review and send each message from your phone's messages app."
-      />
 
       {alerts.length === 0 ? (
-        <EmptyState title="All is calm" message="There are no unconfirmed doses that need your attention." />
+        <EmptyState mood="happy" title="All calm" message="Nothing needs your attention." />
       ) : (
         alerts.map((alert) => (
           <Card key={alert.id} style={styles.card}>
@@ -74,13 +70,13 @@ export default function AlertsScreen() {
               </View>
             </View>
             {isSameDay(alert.occurrence.scheduledAt, now) ? (
-              <Button compact variant="teal" icon="check" label="Confirm dose" onPress={() => setActiveDose(alert.occurrence)} />
+              <Button compact variant="teal" icon="check" label="Mark as taken" onPress={() => setActiveDose(alert.occurrence)} />
             ) : (
               <Button
                 compact
                 variant="teal"
                 icon="edit-2"
-                label="Review in History"
+                label="Review"
                 onPress={() => router.push({ pathname: '/history', params: { date: alert.occurrence.date } })}
               />
             )}
@@ -93,16 +89,16 @@ export default function AlertsScreen() {
       <BottomSheet
         visible={Boolean(textingAlert)}
         onClose={() => setTextingAlert(null)}
-        title="Who should get a text?"
-        subtitle="Your messages app opens with a prepared note for you to review."
+        title="Text who?"
+        subtitle="You review it before sending. Nothing is sent automatically."
       >
         {eligible.length === 0 ? (
           <>
             <AppText color={colors.textMuted}>
-              Add a trusted contact who has agreed to receive care updates, then try again.
+              Add a contact who agreed to receive updates.
             </AppText>
             <Button
-              label="Open care circle"
+              label="Open family"
               onPress={() => {
                 setTextingAlert(null);
                 afterSheetClose(() => router.push('/settings/care-circle'));

@@ -14,6 +14,7 @@ import { colors, spacing } from '@/constants/theme';
 import { useFeedback } from '@/contexts/FeedbackContext';
 import { useCareData } from '@/hooks/useCareData';
 import { useCareStore } from '@/stores/careStore';
+import { displayPhone } from '@/utils/phone';
 
 type NumberKey = 'emergencyNumber' | 'clinicNumber';
 
@@ -117,7 +118,7 @@ export default function UrgentHelpScreen() {
           key={contact.id}
           icon="user"
           title={`${contact.name} · ${contact.relationship}`}
-          number={contact.phone}
+          number={displayPhone(contact.phone)}
           onCall={() => call(contact.phone)}
           onEdit={() => router.push('/settings/care-circle')}
         />

@@ -1,6 +1,6 @@
 import type { BottomTabBarProps } from 'expo-router/js-tabs';
-import { useEffect, useRef, useState } from 'react';
-import { Animated, Pressable, StyleSheet, View } from 'react-native';
+import { useEffect, useRef } from 'react';
+import { Animated, Easing, Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/ui/AppText';
@@ -13,48 +13,80 @@ const TABS: Record<string, { label: string; icon: IconName }> = {
   home: { label: 'Home', icon: 'home' },
   schedule: { label: 'Schedule', icon: 'calendar' },
   voice: { label: 'Voice', icon: 'mic' },
-  history: { label: 'History', icon: 'clock' },
+  history: { label: 'History', icon: 'bar-chart-2' },
   settings: { label: 'Settings', icon: 'settings' },
 };
 
-export function FloatingTabBar({ state, emitter, navigateToTab }: BottomTabBarProps) {
-  const insets = useSafeAreaInsets();
+function TabButton({
+  label,
+  icon,
+  focused,
+  onPress,
+}: {
+  label: string;
+  icon: IconName;
+  focused: boolean;
+  onPress: () => void;
+}) {
   const reducedMotion = useReducedMotion();
-  const [barWidth, setBarWidth] = useState(0);
-  const position = useRef(new Animated.Value(state.index)).current;
+  const active = useRef(new Animated.Value(focused ? 1 : 0)).current;
 
   useEffect(() => {
-    Animated.timing(position, {
-      toValue: state.index,
+    Animated.timing(active, {
+      toValue: focused ? 1 : 0,
       duration: reducedMotion ? 0 : motion.base,
+      easing: Easing.out(Easing.quad),
       useNativeDriver: true,
     }).start();
-  }, [position, reducedMotion, state.index]);
+  }, [active, focused, reducedMotion]);
 
-  const tabWidth = barWidth / state.routes.length;
-  const translateX = Animated.multiply(position, tabWidth || 1);
+  const pillScale = active.interpolate({ inputRange: [0, 1], outputRange: [0.6, 1] });
+  const iconLift = active.interpolate({ inputRange: [0, 1], outputRange: [0, -1] });
+  const tint = focused ? colors.primaryDark : colors.textMuted;
+
+  return (
+    <Pressable
+      accessibilityRole="tab"
+      accessibilityState={{ selected: focused }}
+      accessibilityLabel={label}
+      onPress={onPress}
+      style={styles.tab}
+    >
+      <View style={styles.iconWrap}>
+        <Animated.View style={[styles.pill, { opacity: active, transform: [{ scaleX: pillScale }] }]} />
+        <Animated.View style={{ transform: [{ translateY: iconLift }] }}>
+          <Icon name={icon} size={21} color={tint} />
+        </Animated.View>
+      </View>
+      <AppText
+        variant="caption"
+        color={tint}
+        numberOfLines={1}
+        maxFontSizeMultiplier={1.15}
+        style={[styles.label, focused && styles.labelActive]}
+      >
+        {label}
+      </AppText>
+    </Pressable>
+  );
+}
+
+export function FloatingTabBar({ state, emitter, navigateToTab }: BottomTabBarProps) {
+  const insets = useSafeAreaInsets();
 
   return (
     <View pointerEvents="box-none" style={[styles.wrap, { paddingBottom: Math.max(insets.bottom, spacing.sm) }]}>
-      <View
-        accessibilityRole="tablist"
-        onLayout={(event) => setBarWidth(event.nativeEvent.layout.width - spacing.xs * 2)}
-        style={styles.bar}
-      >
-        {barWidth > 0 ? (
-          <Animated.View style={[styles.highlight, { width: tabWidth, transform: [{ translateX }] }]} />
-        ) : null}
+      <View accessibilityRole="tablist" style={styles.bar}>
         {state.routes.map((route, index) => {
           const tab = TABS[route.name];
           if (!tab) return null;
           const focused = state.index === index;
-          const tint = focused ? colors.primaryDark : colors.textMuted;
           return (
-            <Pressable
+            <TabButton
               key={route.key}
-              accessibilityRole="tab"
-              accessibilityState={{ selected: focused }}
-              accessibilityLabel={tab.label}
+              label={tab.label}
+              icon={tab.icon}
+              focused={focused}
               onPress={() => {
                 const event = emitter.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
                 if (!focused && !event.defaultPrevented) {
@@ -62,13 +94,7 @@ export function FloatingTabBar({ state, emitter, navigateToTab }: BottomTabBarPr
                   navigateToTab(route.key);
                 }
               }}
-              style={styles.tab}
-            >
-              <Icon name={tab.icon} size={22} color={tint} />
-              <AppText variant="caption" color={tint} numberOfLines={1} maxFontSizeMultiplier={1.15} style={styles.label}>
-                {tab.label}
-              </AppText>
-            </Pressable>
+            />
           );
         })}
       </View>
@@ -77,24 +103,28 @@ export function FloatingTabBar({ state, emitter, navigateToTab }: BottomTabBarPr
 }
 
 const styles = StyleSheet.create({
-  wrap: { position: 'absolute', left: 0, right: 0, bottom: 0, paddingHorizontal: spacing.sm },
+  wrap: { position: 'absolute', left: 0, right: 0, bottom: 0, paddingHorizontal: spacing.md },
   bar: {
     flexDirection: 'row',
-    padding: spacing.xs,
+    paddingVertical: 6,
+    paddingHorizontal: 4,
     borderRadius: radii.xl,
     backgroundColor: colors.card,
     borderWidth: 1,
     borderColor: colors.border,
     ...shadows.raised,
   },
-  highlight: {
+  tab: { flex: 1, minHeight: 56, alignItems: 'center', justifyContent: 'center', gap: 3 },
+  iconWrap: { width: 54, height: 30, alignItems: 'center', justifyContent: 'center' },
+  pill: {
     position: 'absolute',
-    top: spacing.xs,
-    bottom: spacing.xs,
-    left: spacing.xs,
-    borderRadius: radii.lg,
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    borderRadius: radii.pill,
     backgroundColor: colors.primarySoft,
   },
-  tab: { flex: 1, minHeight: 56, alignItems: 'center', justifyContent: 'center', gap: 2 },
-  label: { fontSize: 12, lineHeight: 16 },
+  label: { fontSize: 11.5, lineHeight: 15 },
+  labelActive: { fontFamily: 'DMSans_700Bold' },
 });

@@ -36,7 +36,7 @@ export default function ForgotPasswordScreen() {
     <Screen header={<ScreenHeader />}>
       <IconBadge icon="key" />
       <AppText variant="h1">Reset your password</AppText>
-      <AppText color={colors.textMuted}>Enter your email and we'll send you a link to choose a new password.</AppText>
+      <AppText color={colors.textMuted}>We'll email you a reset link.</AppText>
 
       <BackendNotice />
       {sent ? (

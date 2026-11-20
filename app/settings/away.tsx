@@ -15,10 +15,10 @@ import { useCareStore } from '@/stores/careStore';
 import { isAwayActive } from '@/utils/notificationPlan';
 
 const CHANGES: { icon: IconName; text: string }[] = [
-  { icon: 'bell-off', text: 'Dose reminders on this phone are paused.' },
-  { icon: 'map-pin', text: 'Unconfirmed doses are labeled Away in History.' },
-  { icon: 'calendar', text: 'The medication schedule itself never changes.' },
-  { icon: 'check-circle', text: 'You can still confirm any dose in the app.' },
+  { icon: 'bell-off', text: 'Phone reminders pause' },
+  { icon: 'map-pin', text: 'Missed doses show as Away' },
+  { icon: 'calendar', text: 'The schedule never changes' },
+  { icon: 'check-circle', text: 'You can still confirm doses' },
 ];
 
 export default function AwayModeScreen() {
@@ -34,33 +34,35 @@ export default function AwayModeScreen() {
     if (next) {
       const approved = await confirm({
         title: 'Pause phone reminders?',
-        message: `Please make sure someone else is helping ${recipient} with doses while reminders are paused.`,
-        confirmLabel: 'Turn on Away mode',
+        message: `Make sure someone else is helping ${recipient} with doses.`,
+        confirmLabel: 'Turn on',
       });
       if (!approved) return;
     }
     setAwayMode(next);
-    toast(next ? 'Away mode is on.' : 'Away mode is off. Reminders have resumed.');
+    toast(next ? 'Away mode on.' : 'Away mode off. Reminders resumed.');
   };
 
   return (
     <Screen header={<ScreenHeader title="Away mode" />}>
       <View style={styles.hero}>
         <BearMascot size={130} mood={away ? 'sleepy' : 'idle'} />
-        <Tag label={away ? 'Away mode is on' : 'Away mode is off'} tone={away ? 'brown' : 'teal'} icon={away ? 'map-pin' : 'check-circle'} />
+        <View>
+          <Tag label={away ? 'On' : 'Off'} tone={away ? 'brown' : 'teal'} icon={away ? 'map-pin' : 'check-circle'} />
+        </View>
       </View>
 
       <Card>
         <ToggleRow
           label="Away mode"
-          description="For when you are traveling and someone else is helping."
+          description="While you travel"
           value={away}
           onChange={(next) => void toggle(next)}
         />
       </Card>
 
       <Card style={styles.list}>
-        <AppText variant="title">What changes</AppText>
+        <AppText variant="title">When it's on</AppText>
         {CHANGES.map((item) => (
           <View key={item.text} style={styles.row}>
             <Icon name={item.icon} size={19} color={colors.primary} />
@@ -71,11 +73,11 @@ export default function AwayModeScreen() {
         ))}
       </Card>
 
-      <Notice icon="alert-triangle" tone="honey" message="Away mode does not change prescribed doses. Ask the care team before changing any medication routine." />
+      <Notice icon="alert-triangle" tone="honey" message="Doesn't change prescribed doses. Ask the care team before changing any routine." />
 
       {pastPeriods.length > 0 ? (
         <Card style={styles.list}>
-          <AppText variant="title">Recent Away periods</AppText>
+          <AppText variant="title">Recent</AppText>
           {pastPeriods.map((period, index) => (
             <View key={period.id} style={styles.period}>
               {index > 0 ? <Divider /> : null}

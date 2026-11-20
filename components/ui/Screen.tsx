@@ -63,10 +63,22 @@ interface ScreenHeaderProps {
   showBack?: boolean;
   backIcon?: 'arrow-left' | 'x';
   right?: ReactNode;
+  /** Large, left-aligned title for main tab screens. */
+  large?: boolean;
 }
 
-export function ScreenHeader({ title, onBack, showBack = true, backIcon = 'arrow-left', right }: ScreenHeaderProps) {
+export function ScreenHeader({ title, onBack, showBack = true, backIcon = 'arrow-left', right, large }: ScreenHeaderProps) {
   const goBack = onBack ?? (() => (router.canGoBack() ? router.back() : router.replace('/')));
+  if (large) {
+    return (
+      <View style={styles.largeHeader}>
+        <AppText variant="h1" numberOfLines={1} style={styles.headerTitle} accessibilityRole="header">
+          {title}
+        </AppText>
+        {right ? <View style={styles.largeRight}>{right}</View> : null}
+      </View>
+    );
+  }
   return (
     <View style={styles.header}>
       <View style={styles.headerSide}>
@@ -77,7 +89,9 @@ export function ScreenHeader({ title, onBack, showBack = true, backIcon = 'arrow
             hitSlop={8}
             style={styles.headerButton}
           >
-            <Icon name={backIcon} size={24} />
+            <View style={styles.backCircle}>
+              <Icon name={backIcon} size={20} />
+            </View>
           </PressableScale>
         ) : null}
       </View>
@@ -131,6 +145,27 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: spacing.sm,
     minHeight: 56,
+  },
+  largeHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    paddingLeft: spacing.lg,
+    paddingRight: spacing.md,
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.xs,
+    minHeight: 60,
+  },
+  largeRight: { flexDirection: 'row', alignItems: 'center', gap: spacing.xxs },
+  backCircle: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   headerSide: { width: 60, alignItems: 'flex-start', justifyContent: 'center' },
   headerRight: { alignItems: 'flex-end' },

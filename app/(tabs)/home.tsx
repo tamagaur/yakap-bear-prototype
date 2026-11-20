@@ -4,20 +4,19 @@ import { router } from 'expo-router';
 import { useState } from 'react';
 import { StyleSheet, useWindowDimensions, View } from 'react-native';
 
-import { BearFace, BearMascot } from '@/components/bear/BearMascot';
+import { BearMascot } from '@/components/bear/BearMascot';
 import { DoseActionSheet } from '@/components/dose/DoseActionSheet';
 import { DoseRow } from '@/components/dose/DoseRow';
 import { AppText } from '@/components/ui/AppText';
 import {
-  DemoTag,
   Divider,
   EmptyState,
-  IconBadge,
-  Notice,
-  ProgressBar,
+  InfoLink,
+  InfoPoint,
+  ProgressRing,
   SectionHeader,
+  StatusChip,
   StatusPill,
-  Tag,
 } from '@/components/ui/Bits';
 import { Button } from '@/components/ui/Button';
 import { Card, FadeIn } from '@/components/ui/Card';
@@ -31,19 +30,13 @@ import { useBear } from '@/hooks/useServices';
 import type { DoseOccurrence } from '@/types/models';
 import { describeCountdown, describeDay, formatTime, getGreeting, toDateKey } from '@/utils/schedule';
 
-const BEAR_NOTES = [
-  'A familiar voice makes every reminder warmer.',
-  'Small routines add up to big care.',
-  'Thank you for looking after your family today.',
-  'One gentle reminder at a time.',
-  'You are doing a wonderful job.',
-];
-
 function QuickAction({ icon, label, onPress }: { icon: IconName; label: string; onPress: () => void }) {
   return (
     <PressableScale accessibilityLabel={label} onPress={onPress} containerStyle={styles.quickWrap} style={styles.quick}>
-      <IconBadge icon={icon} size={40} />
-      <AppText variant="caption" align="center">
+      <View style={styles.quickIcon}>
+        <Icon name={icon} size={20} color={colors.primaryDark} />
+      </View>
+      <AppText variant="caption" align="center" numberOfLines={1}>
         {label}
       </AppText>
     </PressableScale>
@@ -65,41 +58,51 @@ function NextDoseCard({
   const { width } = useWindowDimensions();
   const voice = data.recordings.find((item) => item.id === dose.voiceRecordingId);
   const isToday = isSameDay(dose.scheduledAt, now);
-  const countdown =
-    dose.status === 'late' ? 'Waiting for confirmation' : describeCountdown(dose.scheduledAt, now);
+  const countdown = dose.status === 'late' ? 'Waiting to confirm' : describeCountdown(dose.scheduledAt, now);
+  const bearSize = width < 360 ? 92 : 116;
 
   return (
-    <LinearGradient colors={[colors.card, '#F6E8D6']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.hero}>
+    <LinearGradient colors={['#FFFDF8', '#F8EAD7']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.hero}>
       <View style={styles.heroTop}>
-        <View style={styles.flex}>
+        <View style={styles.heroText}>
           <AppText variant="eyebrow" color={colors.primaryDark}>
-            {isToday ? 'Next dose' : `Next dose · ${describeDay(dose.scheduledAt, now)}`}
+            {isToday ? 'Next dose' : describeDay(dose.scheduledAt, now)}
           </AppText>
-          <AppText variant="display" numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
+          <AppText variant="display" numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
             {formatTime(dose.time)}
           </AppText>
-          <AppText color={colors.textMuted}>{countdown}</AppText>
-          <View style={styles.heroPill}>
-            <StatusPill status={dose.status} />
-          </View>
+          <AppText variant="small" color={colors.textMuted} numberOfLines={1}>
+            {countdown}
+          </AppText>
         </View>
-        <BearMascot size={width < 360 ? 84 : 118} floating celebrateKey={celebrateKey} />
+        <BearMascot size={bearSize} mood="idle" celebrateKey={celebrateKey} />
       </View>
-      <View style={styles.heroDetail}>
-        <View style={styles.heroRow}>
-          <AppText variant="title" style={styles.flex}>
+
+      <View style={styles.medRow}>
+        <View style={styles.medIcon}>
+          <Icon name="package" size={18} color={colors.brownDark} />
+        </View>
+        <View style={styles.flex}>
+          <AppText variant="title" numberOfLines={1}>
             {dose.medicationName}
           </AppText>
-          <AppText variant="h3">{dose.doseLabel}</AppText>
+          <View style={styles.voiceLine}>
+            <Icon name={voice ? 'volume-2' : 'volume-x'} size={13} color={colors.textMuted} />
+            <AppText variant="caption" color={colors.textMuted} numberOfLines={1} style={styles.flex}>
+              {voice ? voice.name : 'No voice message'}
+            </AppText>
+          </View>
         </View>
-        <View style={styles.heroVoice}>
-          <Icon name="volume-2" size={16} color={colors.textMuted} />
-          <AppText variant="small" color={colors.textMuted} style={styles.flex} numberOfLines={1}>
-            {voice ? `Reminder: "${voice.name}"` : 'No voice message assigned yet'}
-          </AppText>
-        </View>
+        <AppText variant="title" color={colors.brownDark}>
+          {dose.doseLabel}
+        </AppText>
       </View>
-      {isToday ? <Button label="Mark as taken" icon="check" variant="teal" onPress={onConfirm} /> : null}
+
+      {isToday ? (
+        <Button label="Mark as taken" icon="check" variant="teal" onPress={onConfirm} />
+      ) : (
+        <StatusPill status={dose.status} />
+      )}
     </LinearGradient>
   );
 }
@@ -116,20 +119,19 @@ export default function HomeScreen() {
   const firstName = data.caregiver?.name.split(' ')[0] ?? 'there';
   const hasPlan = data.schedules.length > 0;
   const totalToday = summary.due + summary.upcoming + summary.away;
-  const note = BEAR_NOTES[now.getDate() % BEAR_NOTES.length];
-  const recentActivity = data.activity.slice(0, 3);
+  const recentActivity = data.activity.slice(0, 2);
   const bearReady = bear.connection === 'connected';
   const bearLow = bearReady && (bear.battery ?? 100) <= 20;
-  const progressLabel = `${summary.confirmed} of ${totalToday} ${totalToday === 1 ? 'dose' : 'doses'} confirmed today`;
+  const progressLabel = `${summary.confirmed}/${totalToday} doses taken`;
 
   return (
     <Screen tabbed>
       <FadeIn style={styles.header}>
         <View style={styles.flex}>
           <AppText variant="eyebrow" color={colors.primaryDark}>
-            {format(now, 'EEEE, MMMM d')}
+            {format(now, 'EEEE, MMM d')}
           </AppText>
-          <AppText variant="h1" accessibilityRole="header">
+          <AppText variant="h1" accessibilityRole="header" numberOfLines={2}>
             {getGreeting(now)}, {firstName}!
           </AppText>
         </View>
@@ -142,51 +144,50 @@ export default function HomeScreen() {
         />
       </FadeIn>
 
-      <FadeIn delay={40} style={styles.noteRow}>
-        <BearFace size={34} />
-        <AppText variant="small" color={colors.textMuted} style={styles.flex}>
-          {note}
-        </AppText>
-      </FadeIn>
+      <View style={styles.chips}>
+        {data.bear ? (
+          <StatusChip
+            label={bearLow ? 'Bear battery low' : bearReady ? 'Demo Bear active' : 'Bear offline'}
+            tone={bearLow ? 'coral' : bearReady ? 'teal' : 'neutral'}
+            onPress={() => router.push('/settings/bear')}
+          />
+        ) : (
+          <StatusChip label="Pair Demo Bear" tone="neutral" icon="link" onPress={() => router.push('/settings/bear')} />
+        )}
+        {away ? (
+          <InfoLink label="Away mode on" title="Away mode" tone="brown" icon="map-pin">
+            <InfoPoint icon="bell-off" tone="brown" text="Phone reminders are paused." />
+            <InfoPoint icon="calendar" text="The medication schedule hasn't changed." />
+            <Button compact variant="secondary" label="Manage Away mode" onPress={() => router.push('/settings/away')} />
+          </InfoLink>
+        ) : null}
+        {data.hasSamplePlan ? (
+          <InfoLink label="Sample plan" title="Sample plan" icon="book-open">
+            <InfoPoint icon="book-open" tone="honey" text="This is example data for demonstration." />
+            <InfoPoint icon="trash-2" text="Remove it anytime in Settings › Medication plan." />
+          </InfoLink>
+        ) : null}
+      </View>
 
-      {data.hasSamplePlan ? (
-        <Notice
-          icon="book-open"
-          tone="honey"
-          title="Sample care plan"
-          message="Example data for demonstration. You can remove it in Settings."
-        />
-      ) : null}
-      {away ? (
-        <Notice
-          icon="map-pin"
-          tone="brown"
-          title="Away mode is on"
-          message="Phone reminders are paused. The medication schedule has not changed."
-        />
-      ) : null}
       {alerts[0] ? (
-        <Card onPress={() => router.push('/alerts')} accessibilityLabel={alerts[0].title} style={styles.alertCard}>
-          <Icon name="bell" size={20} color={colors.primaryDark} />
-          <View style={styles.flex}>
-            <AppText variant="smallBold">{alerts[0].title}</AppText>
-            <AppText variant="small" color={colors.textMuted}>
-              {alerts[0].body}
-            </AppText>
-          </View>
-          <Icon name="arrow-right" size={20} color={colors.primaryDark} />
+        <Card onPress={() => router.push('/alerts')} accessibilityLabel={alerts[0].title} style={styles.alertCard} tone="flat">
+          <Icon name="bell" size={18} color={colors.coralDeep} />
+          <AppText variant="smallBold" style={styles.flex} numberOfLines={2}>
+            {alerts[0].title}
+          </AppText>
+          <Icon name="chevron-right" size={18} color={colors.coralDeep} />
         </Card>
       ) : null}
 
       {!hasPlan ? (
         <EmptyState
-          title="No medications yet"
-          message={`Add ${recipient}'s first dose time and the bear will take it from there.`}
-          actionLabel="Add a medication"
+          title="No medicines yet"
+          message={`Add ${recipient}'s first dose.`}
+          actionLabel="Add medication"
           onAction={() => router.push('/medication/edit')}
         />
       ) : nextDose ? (
-        <FadeIn delay={80}>
+        <FadeIn delay={60}>
           <NextDoseCard
             dose={nextDose}
             now={now}
@@ -195,40 +196,37 @@ export default function HomeScreen() {
           />
         </FadeIn>
       ) : (
-        <Card style={styles.allDone}>
-          <BearMascot size={110} mood="happy" celebrateKey={celebrateKey} />
+        <FadeIn delay={60} style={styles.allDone}>
+          <BearMascot size={120} mood="celebrating" celebrateKey={celebrateKey} />
           <AppText variant="h3" align="center">
-            All caught up
+            All done for now!
           </AppText>
-          <AppText variant="small" color={colors.textMuted} align="center">
-            No more doses are scheduled for {recipient} right now.
-          </AppText>
-        </Card>
+        </FadeIn>
       )}
 
-      {totalToday > 0 ? (
-        <Card
-          onPress={() => router.push({ pathname: '/history', params: { date: toDateKey(now) } })}
-          accessibilityLabel={`${progressLabel}. View details`}
-          style={styles.progressCard}
-        >
-          <View style={styles.progressTop}>
-            <AppText variant="title" style={styles.flex}>
-              {progressLabel}
-            </AppText>
-            <Icon name="chevron-right" size={20} color={colors.textMuted} />
-          </View>
-          <ProgressBar value={summary.confirmed / totalToday} label="Doses confirmed today" />
-        </Card>
-      ) : null}
-
       {today.length > 0 ? (
-        <>
-          <SectionHeader title="Today's doses" action="View schedule" onAction={() => router.push('/schedule')} />
-          <Card style={styles.listCard}>
-            {today.map((occurrence, index) => (
+        <FadeIn delay={120}>
+          <Card style={styles.todayCard}>
+            <PressableScale
+              accessibilityLabel={`${progressLabel}. Open history`}
+              onPress={() => router.push({ pathname: '/history', params: { date: toDateKey(now) } })}
+              pressedScale={0.99}
+              style={styles.todayHeader}
+            >
+              <ProgressRing value={totalToday ? summary.confirmed / totalToday : 0} size={50} stroke={6} label="Doses taken today">
+                <Icon name="heart" size={16} color={colors.primary} />
+              </ProgressRing>
+              <View style={styles.flex}>
+                <AppText variant="caption" color={colors.textMuted}>
+                  Today
+                </AppText>
+                <AppText variant="title">{progressLabel}</AppText>
+              </View>
+              <Icon name="chevron-right" size={20} color={colors.textMuted} />
+            </PressableScale>
+            {today.map((occurrence) => (
               <View key={occurrence.key}>
-                {index > 0 ? <Divider /> : null}
+                <Divider />
                 <DoseRow
                   occurrence={occurrence}
                   onPress={
@@ -240,60 +238,35 @@ export default function HomeScreen() {
               </View>
             ))}
           </Card>
-        </>
+        </FadeIn>
       ) : null}
 
-      <SectionHeader title={`${recipient}'s bear`} />
-      <Card onPress={() => router.push('/settings/bear')} accessibilityLabel="Bear status" style={styles.bearCard}>
-        <BearFace size={54} />
-        <View style={styles.flex}>
-          <AppText variant="title">{data.bear ? `${data.bear.serial} ${bearReady ? 'is ready' : 'is offline'}` : 'No bear paired'}</AppText>
-          <View style={styles.statusLine}>
-            <View style={[styles.statusDot, { backgroundColor: bearReady ? colors.primary : colors.borderStrong }]} />
-            <AppText variant="small" color={colors.textMuted}>
-              {bearReady ? `Simulated · ${bear.battery ?? 0}% battery` : 'Tap to set up the Demo Bear'}
-            </AppText>
-          </View>
-          <View style={styles.bearTags}>
-            <DemoTag label="Demo Bear" />
-            {bearLow ? <Tag label="Low battery (simulated)" tone="coral" icon="battery" /> : null}
-          </View>
-        </View>
-        <Icon name="chevron-right" size={20} color={colors.textMuted} />
-      </Card>
-
-      <SectionHeader title="Quick actions" />
       <View style={styles.quickRow}>
         <QuickAction icon="plus" label="Add dose" onPress={() => router.push('/medication/edit')} />
-        <QuickAction icon="mic" label="Record voice" onPress={() => router.push('/voice')} />
-        <QuickAction icon="users" label="Care circle" onPress={() => router.push('/settings/care-circle')} />
-        <QuickAction icon="play" label="Preview" onPress={() => router.push('/settings/bear')} />
+        <QuickAction icon="mic" label="Record" onPress={() => router.push('/voice')} />
+        <QuickAction icon="users" label="Family" onPress={() => router.push('/settings/care-circle')} />
+        <QuickAction icon="calendar" label="Schedule" onPress={() => router.push('/schedule')} />
       </View>
 
       {recentActivity.length > 0 ? (
-        <>
-          <SectionHeader title="Care circle activity" />
-          <Card style={styles.listCard}>
-            {recentActivity.map((item, index) => (
-              <View key={item.id}>
-                {index > 0 ? <Divider /> : null}
-                <View style={styles.activityRow}>
-                  <Icon name="heart" size={17} color={colors.coralDeep} />
-                  <View style={styles.flex}>
-                    <AppText variant="small">{item.message}</AppText>
-                    <AppText variant="caption" color={colors.textMuted}>
-                      {formatDistanceToNow(new Date(item.at), { addSuffix: true })}
-                    </AppText>
-                  </View>
-                </View>
-              </View>
-            ))}
-          </Card>
-        </>
+        <View style={styles.activity}>
+          <SectionHeader title="Recent" />
+          {recentActivity.map((item) => (
+            <View key={item.id} style={styles.activityRow}>
+              <View style={styles.activityDot} />
+              <AppText variant="small" style={styles.flex} numberOfLines={2}>
+                {item.message}
+              </AppText>
+              <AppText variant="caption" color={colors.textMuted}>
+                {formatDistanceToNow(new Date(item.at))}
+              </AppText>
+            </View>
+          ))}
+        </View>
       ) : null}
 
-      <AppText variant="caption" color={colors.textMuted} align="center">
-        Yakap Bear is a reminder aid and does not give medical advice. Follow your care team's instructions.
+      <AppText variant="caption" color={colors.textMuted} align="center" style={styles.disclaimer}>
+        A reminder aid, not medical advice.
       </AppText>
 
       <DoseActionSheet
@@ -307,9 +280,15 @@ export default function HomeScreen() {
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
-  header: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginTop: spacing.xs },
-  noteRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
-  alertCard: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, backgroundColor: colors.primarySoft },
+  header: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginTop: spacing.sm },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs, marginTop: -spacing.xxs },
+  alertCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    paddingVertical: spacing.sm,
+    backgroundColor: colors.coralSoft,
+  },
   hero: {
     borderRadius: radii.xl,
     padding: spacing.lg,
@@ -318,30 +297,41 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     ...shadows.raised,
   },
-  heroTop: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
-  heroPill: { marginTop: spacing.xs },
-  heroDetail: { gap: spacing.xs, padding: spacing.sm, borderRadius: radii.md, backgroundColor: 'rgba(255, 252, 247, 0.8)' },
-  heroRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
-  heroVoice: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  allDone: { alignItems: 'center', gap: spacing.xs, paddingVertical: spacing.xl },
-  progressCard: { gap: spacing.sm },
-  progressTop: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
-  listCard: { paddingVertical: spacing.xs },
-  bearCard: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  statusLine: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 },
-  statusDot: { width: 9, height: 9, borderRadius: 5 },
-  bearTags: { flexDirection: 'row', flexWrap: 'wrap', gap: 4 },
+  heroTop: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  heroText: { flex: 1, gap: 2 },
+  medRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    padding: spacing.sm,
+    borderRadius: radii.md,
+    backgroundColor: 'rgba(255, 252, 247, 0.85)',
+  },
+  medIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.brownSoft,
+  },
+  voiceLine: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  allDone: { alignItems: 'center', gap: spacing.xs, paddingVertical: spacing.md },
+  todayCard: { paddingVertical: spacing.xs },
+  todayHeader: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.xs },
   quickRow: { flexDirection: 'row', gap: spacing.xs },
   quickWrap: { flex: 1 },
-  quick: {
+  quick: { alignItems: 'center', gap: 6, paddingVertical: spacing.xs },
+  quickIcon: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
     alignItems: 'center',
-    gap: 6,
-    paddingVertical: spacing.sm,
-    paddingHorizontal: 4,
-    borderRadius: radii.lg,
-    backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.border,
+    justifyContent: 'center',
+    backgroundColor: colors.primarySoft,
   },
-  activityRow: { flexDirection: 'row', gap: spacing.xs, paddingVertical: spacing.sm, alignItems: 'flex-start' },
+  activity: { gap: spacing.xs },
+  activityRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  activityDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.coral },
+  disclaimer: { marginTop: spacing.xs },
 });

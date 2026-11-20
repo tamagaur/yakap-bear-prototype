@@ -15,8 +15,8 @@ export default function EditMedicationScreen() {
   const handleDelete = async () => {
     const approved = await confirm({
       title: `Delete ${medicationName ?? 'this medication'}?`,
-      message: 'Future reminders will stop. Doses already logged stay in History.',
-      confirmLabel: 'Delete medication',
+      message: 'Future reminders stop. Past logs stay in History.',
+      confirmLabel: 'Delete',
       destructive: true,
     });
     if (!approved || !id) return;
@@ -26,7 +26,7 @@ export default function EditMedicationScreen() {
   };
 
   return (
-    <Screen header={<ScreenHeader backIcon="x" title={id ? 'Edit medication' : 'Add medication'} />}>
+    <Screen header={<ScreenHeader backIcon="x" title={id ? 'Edit medicine' : 'New medicine'} />}>
       <MedicationForm
         medicationId={id}
         onSaved={(input) => {

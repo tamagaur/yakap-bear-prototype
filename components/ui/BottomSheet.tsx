@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   Animated,
   Dimensions,
+  Easing,
   KeyboardAvoidingView,
   Modal,
   Pressable,
@@ -36,7 +37,8 @@ export function BottomSheet({ visible, onClose, title, subtitle, children, foote
     if (visible) setMounted(true);
     Animated.timing(progress, {
       toValue: visible ? 1 : 0,
-      duration: reducedMotion ? 0 : motion.base,
+      duration: reducedMotion ? 0 : visible ? motion.slow : motion.base,
+      easing: visible ? Easing.out(Easing.cubic) : Easing.in(Easing.quad),
       useNativeDriver: true,
     }).start(({ finished }) => {
       if (finished && !visible) setMounted(false);
@@ -71,7 +73,9 @@ export function BottomSheet({ visible, onClose, title, subtitle, children, foote
                 ) : null}
               </View>
               <PressableScale accessibilityLabel="Close" onPress={onClose} style={styles.close}>
-                <Icon name="x" size={22} />
+                <View style={styles.closeCircle}>
+                  <Icon name="x" size={18} color={colors.textMuted} />
+                </View>
               </PressableScale>
             </View>
           ) : null}
@@ -102,10 +106,11 @@ const styles = StyleSheet.create({
   },
   handle: {
     alignSelf: 'center',
-    width: 44,
+    width: 40,
     height: 5,
     borderRadius: 3,
     backgroundColor: colors.borderStrong,
+    marginTop: 2,
     marginBottom: spacing.xs,
   },
   header: {
@@ -117,7 +122,15 @@ const styles = StyleSheet.create({
   },
   headerText: { flex: 1, gap: 2, paddingTop: spacing.xs },
   close: { width: TOUCH_TARGET, height: TOUCH_TARGET, alignItems: 'center', justifyContent: 'center' },
+  closeCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.creamDeep,
+  },
   scroll: { flexGrow: 0 },
-  body: { paddingHorizontal: spacing.lg, paddingTop: spacing.sm, paddingBottom: spacing.md, gap: spacing.md },
+  body: { paddingHorizontal: spacing.lg, paddingTop: spacing.sm, paddingBottom: spacing.md, gap: spacing.sm },
   footer: { paddingHorizontal: spacing.lg, paddingTop: spacing.xs, gap: spacing.xs },
 });

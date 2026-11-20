@@ -10,8 +10,8 @@ export function BackendNotice() {
       <Notice
         icon="cloud-off"
         tone="honey"
-        title="Accounts are not connected yet"
-        message="This build has no account server. Use the offline demo to try every feature on this phone."
+        title="Accounts coming soon"
+        message="Use the demo to try everything."
       />
     );
   }
@@ -20,8 +20,8 @@ export function BackendNotice() {
       <Notice
         icon="wifi-off"
         tone="coral"
-        title="No internet connection"
-        message="Connect to the internet to use your account. The offline demo still works."
+        title="You're offline"
+        message="Reconnect to sign in. The demo still works."
       />
     );
   }

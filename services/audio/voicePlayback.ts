@@ -17,6 +17,18 @@ const IDLE: PlaybackSnapshot = { recordingId: null, status: 'idle', positionMs: 
 const LOAD_TIMEOUT_MS = 6000;
 export const PREVIEW_ID = 'unsaved-preview';
 
+// A short, soft bell played at the start of every Demo Bear reminder.
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const CHIME_SOURCE = require('../../assets/sounds/chime.wav');
+const CHIME_TIMEOUT_MS = 2500;
+
+const playbackMode = {
+  playsInSilentMode: true,
+  allowsRecording: false,
+  shouldRouteThroughEarpiece: false,
+  shouldPlayInBackground: false,
+} as const;
+
 export const MISSING_AUDIO_MESSAGE = 'This recording is missing from the phone. Please record it again.';
 export const DAMAGED_AUDIO_MESSAGE = 'This recording could not be played. It may be damaged, so please record it again.';
 
@@ -27,8 +39,51 @@ class VoicePlayback {
   private player: AudioPlayer | null = null;
   private subscription: { remove: () => void } | null = null;
   private loadTimer: ReturnType<typeof setTimeout> | null = null;
+  private chimePlayer: AudioPlayer | null = null;
+  private finishChime: (() => void) | null = null;
 
   getSnapshot = () => this.snapshot;
+
+  /** Plays the reminder chime and resolves when it ends (or is stopped). Never throws. */
+  async playChime(): Promise<void> {
+    this.stopChime();
+    try {
+      await setAudioModeAsync(playbackMode);
+      const player = createAudioPlayer(CHIME_SOURCE);
+      this.chimePlayer = player;
+      await new Promise<void>((resolve) => {
+        let subscription: { remove: () => void } | null = null;
+        const timer = setTimeout(() => done(), CHIME_TIMEOUT_MS);
+        const done = () => {
+          clearTimeout(timer);
+          subscription?.remove();
+          if (this.finishChime === done) this.finishChime = null;
+          resolve();
+        };
+        this.finishChime = done;
+        subscription = player.addListener('playbackStatusUpdate', (status) => {
+          if (status.didJustFinish) done();
+        });
+        player.play();
+      });
+      if (this.chimePlayer === player) this.stopChime();
+    } catch {
+      this.stopChime();
+    }
+  }
+
+  stopChime() {
+    const finish = this.finishChime;
+    this.finishChime = null;
+    try {
+      this.chimePlayer?.pause();
+      this.chimePlayer?.remove();
+    } catch {
+      // Already released.
+    }
+    this.chimePlayer = null;
+    finish?.();
+  }
 
   subscribe = (listener: () => void) => {
     this.listeners.add(listener);
@@ -78,12 +133,7 @@ class VoicePlayback {
     this.listeners.forEach((listener) => listener());
 
     try {
-      await setAudioModeAsync({
-        playsInSilentMode: true,
-        allowsRecording: false,
-        shouldRouteThroughEarpiece: false,
-        shouldPlayInBackground: false,
-      });
+      await setAudioModeAsync(playbackMode);
       const player = createAudioPlayer({ uri }, { updateInterval: 150 });
       this.player = player;
       this.loadTimer = setTimeout(() => {
@@ -143,6 +193,7 @@ class VoicePlayback {
   }
 
   stop() {
+    this.stopChime();
     this.release();
     this.snapshot = IDLE;
     this.listeners.forEach((listener) => listener());

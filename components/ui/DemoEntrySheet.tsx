@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/ui/AppText';
-import { DemoTag, IconBadge } from '@/components/ui/Bits';
+import { IconBadge } from '@/components/ui/Bits';
 import { BottomSheet } from '@/components/ui/BottomSheet';
 import { Card } from '@/components/ui/Card';
 import { Icon } from '@/components/ui/Icon';
@@ -38,27 +38,26 @@ export function DemoEntrySheet({ visible, onClose }: { visible: boolean; onClose
     <BottomSheet
       visible={visible}
       onClose={onClose}
-      title="Open the offline demo"
-      subtitle="Everything stays on this phone. No account is created."
+      title="Try the demo"
+      subtitle="Saved only on this phone."
     >
-      <Card onPress={() => void open(false)} accessibilityLabel="Set up my own care plan" style={styles.option}>
+      <Card onPress={() => void open(false)} accessibilityLabel="Start fresh. Set up your own care plan" style={styles.option}>
         <IconBadge icon="edit-3" />
         <View style={styles.text}>
-          <AppText variant="title">Set up my own care plan</AppText>
+          <AppText variant="title">Start fresh</AppText>
           <AppText variant="small" color={colors.textMuted}>
-            Walk through the six setup steps.
+            Set up your own care plan
           </AppText>
         </View>
         <Icon name="chevron-right" size={20} color={colors.textMuted} />
       </Card>
-      <Card onPress={() => void open(true)} accessibilityLabel="Open the sample care plan" style={styles.option}>
+      <Card onPress={() => void open(true)} accessibilityLabel="Explore a sample plan with example data" style={styles.option}>
         <IconBadge icon="book-open" tone="honey" />
         <View style={styles.text}>
-          <AppText variant="title">Open the sample care plan</AppText>
+          <AppText variant="title">Explore a sample plan</AppText>
           <AppText variant="small" color={colors.textMuted}>
-            Example doses and history for presentations.
+            Example doses and history
           </AppText>
-          <DemoTag label="Sample data" />
         </View>
         <Icon name="chevron-right" size={20} color={colors.textMuted} />
       </Card>

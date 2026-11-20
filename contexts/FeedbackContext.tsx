@@ -170,7 +170,7 @@ function CelebratingBear({ triggerKey }: { triggerKey: number }) {
     const timer = setTimeout(() => setKey(triggerKey), 120);
     return () => clearTimeout(timer);
   }, [triggerKey]);
-  return <BearMascot size={120} mood="happy" celebrateKey={key} />;
+  return <BearMascot size={130} mood="celebrating" celebrateKey={key} />;
 }
 
 export function useFeedback(): FeedbackValue {

@@ -2,7 +2,7 @@ import { StyleSheet, View } from 'react-native';
 
 import { BearMascot } from '@/components/bear/BearMascot';
 import { AppText } from '@/components/ui/AppText';
-import { DemoTag, Notice, Tag } from '@/components/ui/Bits';
+import { InfoLink, InfoPoint, Tag } from '@/components/ui/Bits';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Icon } from '@/components/ui/Icon';
@@ -49,9 +49,9 @@ export function BearPairingPanel() {
   return (
     <View style={styles.wrap}>
       <Card style={styles.card}>
-        <BearMascot size={140} mood={isConnected ? 'happy' : 'idle'} waving={isBusy} floating={isBusy} />
+        <BearMascot size={150} mood={isConnected ? 'excited' : 'idle'} waving={isBusy} />
         <AppText variant="h3">{SERIAL}</AppText>
-        <DemoTag label="Simulated Demo Bear" />
+        <DemoBearInfo active={isConnected} />
 
         <View style={styles.steps}>
           {STEPS.map((step, index) => {
@@ -69,12 +69,14 @@ export function BearPairingPanel() {
 
         {isConnected ? (
           <>
-            <Tag label={`${bear.battery ?? DEMO_START_BATTERY}% battery (simulated)`} tone="teal" icon="battery-charging" />
+            <View>
+              <Tag label={`${bear.battery ?? DEMO_START_BATTERY}% battery`} tone="teal" icon="battery-charging" />
+            </View>
             <Button
               compact
               variant="secondary"
               icon="volume-2"
-              label={bear.playback === 'idle' ? 'Test playback' : 'Playing on this phone…'}
+              label={bear.playback === 'idle' ? 'Test sound' : 'Playing…'}
               disabled={bear.playback !== 'idle'}
               onPress={testPlayback}
               containerStyle={styles.fullWidth}
@@ -88,7 +90,7 @@ export function BearPairingPanel() {
               </AppText>
             ) : null}
             <Button
-              label="Pair the Demo Bear"
+              label="Pair Demo Bear"
               icon="link"
               loading={isBusy}
               onPress={() => void startPairing()}
@@ -97,18 +99,24 @@ export function BearPairingPanel() {
           </>
         )}
       </Card>
-      <Notice
-        icon="info"
-        tone="honey"
-        message="No physical bear is connected. Connection, battery, and status are simulated, and sound plays through this phone."
-      />
     </View>
+  );
+}
+
+/** Compact "Demo Bear" label. Tapping it explains what is simulated. */
+export function DemoBearInfo({ active }: { active: boolean }) {
+  return (
+    <InfoLink label={active ? 'Demo Bear active' : 'Demo Bear'} title="About the Demo Bear" tone={active ? 'teal' : 'honey'}>
+      <InfoPoint icon="cpu" tone="honey" text="No physical bear is connected." />
+      <InfoPoint icon="battery" tone="honey" text="Connection and battery are simulated." />
+      <InfoPoint icon="volume-2" text="Sound plays through this phone." />
+    </InfoLink>
   );
 }
 
 const styles = StyleSheet.create({
   wrap: { gap: spacing.md },
-  card: { alignItems: 'center', gap: spacing.xs, padding: spacing.lg },
+  card: { alignItems: 'center', gap: spacing.sm, padding: spacing.lg },
   steps: { flexDirection: 'row', justifyContent: 'space-between', alignSelf: 'stretch', marginVertical: spacing.xs },
   step: { alignItems: 'center', gap: 4, flex: 1 },
   fullWidth: { alignSelf: 'stretch' },

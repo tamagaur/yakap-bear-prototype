@@ -6,7 +6,7 @@ import { DoseAssignList } from '@/components/voice/DoseAssignList';
 import { VoiceRecorderCard } from '@/components/voice/VoiceRecorderCard';
 import { Waveform, seededBars } from '@/components/voice/Waveform';
 import { AppText } from '@/components/ui/AppText';
-import { DemoTag, Divider, EmptyState, Notice, SectionHeader, Tag } from '@/components/ui/Bits';
+import { Divider, EmptyState, InfoPoint, Notice, Tag } from '@/components/ui/Bits';
 import { BottomSheet } from '@/components/ui/BottomSheet';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
@@ -57,7 +57,7 @@ function RecordingRow({
           </AppText>
           <AppText variant="small" color={colors.textMuted}>
             {formatDuration(recording.durationMs)} ·{' '}
-            {assignedCount > 0 ? `Assigned to ${assignedCount} dose${assignedCount === 1 ? '' : 's'}` : 'Not assigned'}
+            {assignedCount > 0 ? `${assignedCount} dose${assignedCount === 1 ? '' : 's'}` : 'Not assigned'}
           </AppText>
         </View>
         <PressableScale accessibilityLabel={`Options for ${recording.name}`} onPress={onMenu} style={styles.more}>
@@ -111,11 +111,11 @@ export default function VoiceScreen() {
   const playOnDemoBear = (recording: VoiceRecording) => {
     setMenuFor(null);
     if (bear.connection !== 'connected') {
-      toast('Pair the Demo Bear in Settings first.', 'info');
+      toast('Pair the Demo Bear first.', 'info');
       return;
     }
     void bearService.previewReminder(recording);
-    toast('Playing through this phone as the Demo Bear.', 'info');
+    toast('Playing on this phone.', 'info');
   };
 
   const handleDelete = (recording: VoiceRecording) => {
@@ -123,13 +123,13 @@ export default function VoiceScreen() {
     afterSheetClose(async () => {
       const approved = await confirm({
         title: `Delete "${recording.name}"?`,
-        message: 'This recording will be removed from this phone and from any doses using it.',
-        confirmLabel: 'Delete recording',
+        message: 'It will be removed from any doses using it.',
+        confirmLabel: 'Delete',
         destructive: true,
       });
       if (!approved) return;
       deleteRecording(recording.id);
-      toast('Recording deleted.');
+      toast('Message deleted.');
     });
   };
 
@@ -138,7 +138,7 @@ export default function VoiceScreen() {
     if (!nameDraft.trim()) return setNameError('Please enter a name.');
     renameRecording(renaming.id, nameDraft);
     setRenaming(null);
-    toast('Recording renamed.');
+    toast('Renamed.');
   };
 
   return (
@@ -146,23 +146,23 @@ export default function VoiceScreen() {
       tabbed
       header={
         <ScreenHeader
-          title="Voice reminders"
-          showBack={false}
-          right={<IconButton icon="info" label="About voice reminders" onPress={() => setInfoOpen(true)} />}
+          large
+          title="Voice"
+          right={<IconButton icon="info" tone="card" label="About voice messages" onPress={() => setInfoOpen(true)} />}
         />
       }
     >
       <VoiceRecorderCard />
 
       <View style={styles.savedHeader}>
-        <View style={styles.flex}>
-          <SectionHeader title="Saved messages" />
-        </View>
-        <Tag label={`${data.recordings.length} of ${MAX_SAVED_RECORDINGS}`} />
+        <AppText variant="title" accessibilityRole="header" style={styles.savedTitle}>
+          Saved
+        </AppText>
+        <Tag label={`${data.recordings.length}/${MAX_SAVED_RECORDINGS}`} />
       </View>
 
       {data.recordings.length === 0 ? (
-        <EmptyState title="No voice messages yet" message="Record your first message above. A familiar voice makes every reminder warmer." />
+        <EmptyState mood="comfort" size={96} title="No messages yet" message="Your voice makes reminders warmer." />
       ) : (
         <Card style={styles.list}>
           {data.recordings.map((recording, index) => (
@@ -178,36 +178,27 @@ export default function VoiceScreen() {
         </Card>
       )}
 
-      <BottomSheet visible={infoOpen} onClose={() => setInfoOpen(false)} title="About voice reminders">
-        <AppText color={colors.textMuted}>
-          Messages are saved privately on this phone. At dose time, the assigned message plays when you open the reminder.
-        </AppText>
-        <Notice
-          icon="info"
-          tone="honey"
-          title="Demo Bear"
-          message="In this version, audio plays through the phone speaker. Nothing is sent to a physical bear."
-        />
+      <BottomSheet visible={infoOpen} onClose={() => setInfoOpen(false)} title="Voice messages">
+        <InfoPoint icon="lock" text="Saved privately on this phone." />
+        <InfoPoint icon="bell" text="Plays when you open a dose reminder." />
+        <InfoPoint icon="smartphone" tone="honey" text="Demo Bear audio plays through this phone. Nothing is sent to a physical bear." />
       </BottomSheet>
 
       <BottomSheet visible={Boolean(menuFor)} onClose={() => setMenuFor(null)} title={menuFor?.name}>
         <Button label="Rename" variant="secondary" icon="edit-2" onPress={() => menuFor && openRename(menuFor)} />
-        <Button label="Assign to doses" variant="secondary" icon="calendar" onPress={() => menuFor && openAssign(menuFor)} />
+        <Button label="Choose doses" variant="secondary" icon="calendar" onPress={() => menuFor && openAssign(menuFor)} />
         <Button label="Play on Demo Bear" variant="secondary" icon="volume-2" onPress={() => menuFor && playOnDemoBear(menuFor)} />
-        <View style={styles.demoTag}>
-          <DemoTag label="Plays through this phone" />
-        </View>
         <Button label="Delete" variant="danger" icon="trash-2" onPress={() => menuFor && handleDelete(menuFor)} />
       </BottomSheet>
 
       <BottomSheet
         visible={Boolean(renaming)}
         onClose={() => setRenaming(null)}
-        title="Rename message"
-        footer={<Button label="Save name" onPress={saveRename} />}
+        title="Rename"
+        footer={<Button label="Save" onPress={saveRename} />}
       >
         <TextField
-          label="Message name"
+          label="Name"
           value={nameDraft}
           onChangeText={(value) => {
             setNameDraft(value);
@@ -221,21 +212,21 @@ export default function VoiceScreen() {
       <BottomSheet
         visible={Boolean(assigning)}
         onClose={() => setAssigning(null)}
-        title="Assign to doses"
+        title="Play at"
         subtitle={assigning?.name}
         footer={
           doseOptions.length > 0 ? (
             <Button
-              label="Save assignment"
+              label="Save"
               onPress={() => {
                 if (assigning) assignRecording(assigning.id, assignDraft);
                 setAssigning(null);
-                toast('Assignment saved.');
+                toast('Saved.');
               }}
             />
           ) : (
             <Button
-              label="Add a medication"
+              label="Add medication"
               onPress={() => {
                 setAssigning(null);
                 afterSheetClose(() => router.push('/medication/edit'));
@@ -252,7 +243,8 @@ export default function VoiceScreen() {
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
-  savedHeader: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
+  savedHeader: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, marginTop: spacing.sm },
+  savedTitle: { flex: 1, fontSize: 17 },
   list: { paddingVertical: spacing.xxs },
   rowWrap: { paddingVertical: spacing.xs, gap: spacing.xs },
   row: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },

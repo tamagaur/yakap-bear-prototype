@@ -5,7 +5,7 @@ import { StyleSheet, View } from 'react-native';
 import { BearMascot } from '@/components/bear/BearMascot';
 import { DoseActionSheet } from '@/components/dose/DoseActionSheet';
 import { AppText } from '@/components/ui/AppText';
-import { DemoTag, EmptyState, Notice, StatusPill } from '@/components/ui/Bits';
+import { EmptyState, Notice, StatusPill } from '@/components/ui/Bits';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Screen, ScreenHeader } from '@/components/ui/Screen';
@@ -42,8 +42,8 @@ export default function ReminderScreen() {
     return (
       <Screen header={<ScreenHeader backIcon="x" />}>
         <EmptyState
-          title="This reminder has passed"
-          message="The dose may have been changed or removed from the plan."
+          title="Reminder not found"
+          message="This dose may have changed."
           actionLabel="Go home"
           onAction={() => router.replace('/home')}
         />
@@ -56,12 +56,12 @@ export default function ReminderScreen() {
   return (
     <Screen header={<ScreenHeader backIcon="x" title="Reminder" />} contentStyle={styles.content}>
       <View style={styles.center}>
-        <BearMascot size={170} mood={isPlaying ? 'listening' : 'idle'} floating waving={isPlaying} />
+        <BearMascot size={170} mood={isPlaying ? 'listening' : 'happy'} waving={!isPlaying} />
         <AppText variant="eyebrow" color={colors.primaryDark}>
-          {formatTime(dose.time)} reminder
+          {formatTime(dose.time)}
         </AppText>
         <AppText variant="h1" align="center">
-          Time for {recipient}'s medicine
+          Medicine time for {recipient}
         </AppText>
       </View>
 
@@ -78,24 +78,19 @@ export default function ReminderScreen() {
 
       {voice ? (
         <Button
-          label={isPlaying ? 'Pause voice message' : `Play "${voice.name}"`}
+          label={isPlaying ? 'Pause' : `Play "${voice.name}"`}
           variant="secondary"
           icon={isPlaying ? 'pause' : 'play'}
           onPress={() => void voicePlayback.toggle(voice)}
         />
       ) : (
-        <Notice icon="mic" tone="honey" message="No voice message is assigned to this dose yet." />
+        <Notice icon="mic" tone="honey" message="No voice message for this dose." />
       )}
       {playback.status === 'error' && playback.errorMessage ? (
         <Notice icon="alert-circle" tone="coral" message={playback.errorMessage} />
       ) : null}
-      {voice ? (
-        <View style={styles.center}>
-          <DemoTag label="Plays through this phone" />
-        </View>
-      ) : null}
 
-      {open ? <Button label="Confirm this dose" icon="check" variant="teal" onPress={() => setConfirming(true)} /> : null}
+      {open ? <Button label="Mark as taken" icon="check" variant="teal" onPress={() => setConfirming(true)} /> : null}
       <Button label="Not now" variant="ghost" onPress={() => router.back()} />
 
       <DoseActionSheet occurrence={confirming ? dose : null} onClose={() => setConfirming(false)} />
