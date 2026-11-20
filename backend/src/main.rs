@@ -20,9 +20,13 @@ async fn main() -> anyhow::Result<()> {
 
     let cfg = config::Config::from_env()?;
     // Lazy pool: the server starts even if the database is down; requests then get 503s.
+    // No ping before every query: on a hosted database (~45 ms away) it doubled each round trip.
+    // Idle connections are closed after a minute instead, so a dropped link isn't reused for long.
     let pool = PgPoolOptions::new()
-        .max_connections(10)
+        .max_connections(16)
         .acquire_timeout(Duration::from_secs(4))
+        .test_before_acquire(false)
+        .idle_timeout(Duration::from_secs(60))
         .connect_lazy(&cfg.database_url)
         .context("invalid DATABASE_URL")?;
 

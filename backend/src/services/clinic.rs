@@ -1,6 +1,7 @@
 //! Clinic dashboard queries (tasks D2, D3, D4, D8). Callers enforce consent first.
 
 use chrono::{DateTime, NaiveDate, Utc};
+use futures_util::future::try_join_all;
 use sqlx::PgPool;
 
 use chrono::Duration;
@@ -97,44 +98,48 @@ pub async fn patient_rows(
     .bind(q.map(like_pattern))
     .fetch_all(pool)
     .await?;
-    let mut out = Vec::with_capacity(rows.len());
-    for r in rows {
-        let pid = &r.patient.id;
-        dose_engine::evaluate_patient(pool, pid, now).await?;
-        let s7 = insights::adherence_summary(pool, pid, 7, now).await?;
-        let s30 = insights::adherence_summary(pool, pid, 30, now).await?;
-        let last: Option<(DateTime<Utc>, String, String)> = sqlx::query_as(
+    // Patients are independent, so they load side by side (order is kept). On a hosted
+    // database every query is a network round trip, and one-by-one took seconds.
+    try_join_all(rows.into_iter().map(|r| patient_row(pool, r, now))).await
+}
+
+async fn patient_row(pool: &PgPool, r: ConsentedPatient, now: DateTime<Utc>) -> sqlx::Result<ClinicPatientRowDto> {
+    let pid = r.patient.id.as_str();
+    // Bring this patient's dose state up to date first; the reads below depend on it.
+    dose_engine::evaluate_patient(pool, pid, now).await?;
+    let (s7, s30, last, logged, away_now) = tokio::try_join!(
+        insights::adherence_summary(pool, pid, 7, now),
+        insights::adherence_summary(pool, pid, 30, now),
+        sqlx::query_as::<_, (DateTime<Utc>, String, String)>(
             "SELECT e.scheduled_for, e.status, s.label FROM dose_events e JOIN dose_schedules s ON s.id = e.schedule_id
              WHERE e.patient_id = $1 AND e.status IN ('TAKEN', 'LATE', 'MISSED', 'AWAY') AND e.scheduled_for <= $2
              ORDER BY e.scheduled_for DESC LIMIT 1",
         )
         .bind(pid)
         .bind(now)
-        .fetch_optional(pool)
-        .await?;
-        let logged: i64 = sqlx::query_scalar(
+        .fetch_optional(pool),
+        sqlx::query_scalar::<_, i64>(
             "SELECT count(*) FROM dose_events WHERE patient_id = $1 AND status IN ('TAKEN', 'LATE', 'MISSED')",
         )
         .bind(pid)
-        .fetch_one(pool)
-        .await?;
-        out.push(ClinicPatientRowDto {
-            id: r.patient.id.clone(),
-            full_name: r.patient.full_name.clone(),
-            nickname: r.patient.nickname.clone(),
-            birth_year: r.patient.birth_year,
-            consent_since: iso(r.granted_at),
-            on_time_pct7: s7.counts.on_time_pct,
-            adherence_pct30: s30.counts.adherence_pct,
-            missed7: s7.counts.missed,
-            last_dose: last.map(|(t, status, label)| LastDoseDto { scheduled_for: iso(t), status, label }),
-            away_now: dose_engine::is_away_now(pool, pid, now).await?,
-            has_data: logged > 0,
-            // The last 28 of the 30 days already loaded, in four 7-day buckets.
-            spark: weekly_on_time(&s30.daily[s30.daily.len().saturating_sub(28)..]),
-        });
-    }
-    Ok(out)
+        .fetch_one(pool),
+        dose_engine::is_away_now(pool, pid, now),
+    )?;
+    Ok(ClinicPatientRowDto {
+        id: r.patient.id.clone(),
+        full_name: r.patient.full_name.clone(),
+        nickname: r.patient.nickname.clone(),
+        birth_year: r.patient.birth_year,
+        consent_since: iso(r.granted_at),
+        on_time_pct7: s7.counts.on_time_pct,
+        adherence_pct30: s30.counts.adherence_pct,
+        missed7: s7.counts.missed,
+        last_dose: last.map(|(t, status, label)| LastDoseDto { scheduled_for: iso(t), status, label }),
+        away_now,
+        has_data: logged > 0,
+        // The last 28 of the 30 days already loaded, in four 7-day buckets.
+        spark: weekly_on_time(&s30.daily[s30.daily.len().saturating_sub(28)..]),
+    })
 }
 
 pub async fn patient_detail(
@@ -144,44 +149,40 @@ pub async fn patient_detail(
     now: DateTime<Utc>,
 ) -> sqlx::Result<ClinicPatientDetailDto> {
     dose_engine::evaluate_patient(pool, &patient.id, now).await?;
-    let contacts =
+    // Independent reads, sent together (each is a network round trip on a hosted database).
+    let (contacts, schedules, away, recent, first, device) = tokio::try_join!(
         sqlx::query_as::<_, FamilyContact>("SELECT * FROM family_contacts WHERE patient_id = $1 ORDER BY created_at")
             .bind(&patient.id)
-            .fetch_all(pool)
-            .await?;
-    let schedules = sqlx::query_as::<_, ScheduleWithVoice>(concat!(
-        schedule_select!(),
-        " WHERE s.patient_id = $1 AND s.active AND s.deleted_at IS NULL ORDER BY s.time_of_day"
-    ))
-    .bind(&patient.id)
-    .fetch_all(pool)
-    .await?;
-    let away: Vec<(String, String, String, DateTime<Utc>, DateTime<Utc>)> = sqlx::query_as(
-        "SELECT start_date, end_date, reason, starts_at, ends_at FROM away_periods
-         WHERE patient_id = $1 AND cancelled_at IS NULL ORDER BY starts_at DESC LIMIT 5",
-    )
-    .bind(&patient.id)
-    .fetch_all(pool)
-    .await?;
-    let recent = sqlx::query_as::<_, DoseEventFull>(concat!(
-        dose_select!(),
-        " WHERE e.patient_id = $1 AND e.scheduled_for <= $2 AND e.status IN ('TAKEN', 'LATE', 'MISSED', 'AWAY')
-          ORDER BY e.scheduled_for DESC LIMIT 10"
-    ))
-    .bind(&patient.id)
-    .bind(now)
-    .fetch_all(pool)
-    .await?;
-    let first: Option<DateTime<Utc>> = sqlx::query_scalar(
-        "SELECT min(scheduled_for) FROM dose_events WHERE patient_id = $1 AND status IN ('TAKEN', 'LATE', 'MISSED', 'AWAY')",
-    )
-    .bind(&patient.id)
-    .fetch_one(pool)
-    .await?;
-    let device = sqlx::query_as::<_, BearDevice>("SELECT * FROM bear_devices WHERE patient_id = $1")
+            .fetch_all(pool),
+        sqlx::query_as::<_, ScheduleWithVoice>(concat!(
+            schedule_select!(),
+            " WHERE s.patient_id = $1 AND s.active AND s.deleted_at IS NULL ORDER BY s.time_of_day"
+        ))
         .bind(&patient.id)
-        .fetch_optional(pool)
-        .await?;
+        .fetch_all(pool),
+        sqlx::query_as::<_, (String, String, String, DateTime<Utc>, DateTime<Utc>)>(
+            "SELECT start_date, end_date, reason, starts_at, ends_at FROM away_periods
+             WHERE patient_id = $1 AND cancelled_at IS NULL ORDER BY starts_at DESC LIMIT 5",
+        )
+        .bind(&patient.id)
+        .fetch_all(pool),
+        sqlx::query_as::<_, DoseEventFull>(concat!(
+            dose_select!(),
+            " WHERE e.patient_id = $1 AND e.scheduled_for <= $2 AND e.status IN ('TAKEN', 'LATE', 'MISSED', 'AWAY')
+              ORDER BY e.scheduled_for DESC LIMIT 10"
+        ))
+        .bind(&patient.id)
+        .bind(now)
+        .fetch_all(pool),
+        sqlx::query_scalar::<_, Option<DateTime<Utc>>>(
+            "SELECT min(scheduled_for) FROM dose_events WHERE patient_id = $1 AND status IN ('TAKEN', 'LATE', 'MISSED', 'AWAY')",
+        )
+        .bind(&patient.id)
+        .fetch_one(pool),
+        sqlx::query_as::<_, BearDevice>("SELECT * FROM bear_devices WHERE patient_id = $1")
+            .bind(&patient.id)
+            .fetch_optional(pool),
+    )?;
     Ok(ClinicPatientDetailDto {
         id: patient.id.clone(),
         full_name: patient.full_name.clone(),
@@ -285,49 +286,71 @@ pub async fn clinician_overview(pool: &PgPool, clinician: &User, now: DateTime<U
     let ids: Vec<String> = rows.iter().map(|r| r.id.clone()).collect();
     let today = time::date_of(now);
     let week_start = time::start_of_day(time::add_days(today, -6));
+    // Six 7-day buckets ending today.
+    let trend_start = time::add_days(today, -41);
+    // Patients worth checking for a repeated-miss pattern (needs dose data, not away).
+    let pattern_candidates: Vec<&ClinicPatientRowDto> = rows.iter().filter(|r| r.has_data && !r.away_now).collect();
 
-    let week_counts: Vec<(String, i64)> = sqlx::query_as(
-        "SELECT status, count(*) FROM dose_events
-         WHERE patient_id = ANY($1) AND scheduled_for >= $2 AND scheduled_for <= $3
-           AND status IN ('TAKEN', 'LATE', 'MISSED', 'AWAY')
-         GROUP BY status",
-    )
-    .bind(&ids)
-    .bind(week_start)
-    .bind(now)
-    .fetch_all(pool)
-    .await?;
+    // All of these are independent reads, so they are sent together.
+    let (week_counts, prev_counts, trend_rows, today_counts, recent, patterns) = tokio::try_join!(
+        sqlx::query_as::<_, (String, i64)>(
+            "SELECT status, count(*) FROM dose_events
+             WHERE patient_id = ANY($1) AND scheduled_for >= $2 AND scheduled_for <= $3
+               AND status IN ('TAKEN', 'LATE', 'MISSED', 'AWAY')
+             GROUP BY status",
+        )
+        .bind(&ids)
+        .bind(week_start)
+        .bind(now)
+        .fetch_all(pool),
+        sqlx::query_as::<_, (String, i64)>(
+            "SELECT status, count(*) FROM dose_events
+             WHERE patient_id = ANY($1) AND scheduled_for >= $2 AND scheduled_for < $3
+               AND status IN ('TAKEN', 'LATE', 'MISSED', 'AWAY')
+             GROUP BY status",
+        )
+        .bind(&ids)
+        .bind(time::start_of_day(time::add_days(today, -13)))
+        .bind(week_start)
+        .fetch_all(pool),
+        sqlx::query_as::<_, (String, DateTime<Utc>)>(
+            "SELECT status, scheduled_for FROM dose_events
+             WHERE patient_id = ANY($1) AND scheduled_for >= $2 AND scheduled_for <= $3
+               AND status IN ('TAKEN', 'LATE', 'MISSED', 'AWAY')",
+        )
+        .bind(&ids)
+        .bind(time::start_of_day(trend_start))
+        .bind(now)
+        .fetch_all(pool),
+        sqlx::query_as::<_, (String, i64)>(
+            "SELECT status, count(*) FROM dose_events
+             WHERE patient_id = ANY($1) AND scheduled_for >= $2 AND scheduled_for < $3
+             GROUP BY status",
+        )
+        .bind(&ids)
+        .bind(time::start_of_day(today))
+        .bind(time::start_of_day(time::add_days(today, 1)))
+        .fetch_all(pool),
+        sqlx::query_as::<_, (String, String, String, DateTime<Utc>, String)>(
+            "SELECT p.id, p.full_name, p.nickname, e.scheduled_for, s.label
+             FROM dose_events e
+             JOIN patients p ON p.id = e.patient_id
+             JOIN dose_schedules s ON s.id = e.schedule_id
+             WHERE e.patient_id = ANY($1) AND e.status = 'MISSED' AND e.scheduled_for >= $2
+             ORDER BY e.scheduled_for DESC LIMIT 6",
+        )
+        .bind(&ids)
+        .bind(week_start)
+        .fetch_all(pool),
+        try_join_all(pattern_candidates.iter().map(|r| top_pattern(pool, &r.id, now))),
+    )?;
+
     let week = summarize_adherence(week_counts.iter().flat_map(|(s, n)| {
         std::iter::repeat_n(DoseStatus::parse(s).unwrap_or(DoseStatus::Upcoming), *n as usize)
     }));
-
-    let prev_counts: Vec<(String, i64)> = sqlx::query_as(
-        "SELECT status, count(*) FROM dose_events
-         WHERE patient_id = ANY($1) AND scheduled_for >= $2 AND scheduled_for < $3
-           AND status IN ('TAKEN', 'LATE', 'MISSED', 'AWAY')
-         GROUP BY status",
-    )
-    .bind(&ids)
-    .bind(time::start_of_day(time::add_days(today, -13)))
-    .bind(week_start)
-    .fetch_all(pool)
-    .await?;
     let week_prev = summarize_adherence(prev_counts.iter().flat_map(|(s, n)| {
         std::iter::repeat_n(DoseStatus::parse(s).unwrap_or(DoseStatus::Upcoming), *n as usize)
     }));
-
-    // Six 7-day buckets ending today.
-    let trend_start = time::add_days(today, -41);
-    let trend_rows: Vec<(String, DateTime<Utc>)> = sqlx::query_as(
-        "SELECT status, scheduled_for FROM dose_events
-         WHERE patient_id = ANY($1) AND scheduled_for >= $2 AND scheduled_for <= $3
-           AND status IN ('TAKEN', 'LATE', 'MISSED', 'AWAY')",
-    )
-    .bind(&ids)
-    .bind(time::start_of_day(trend_start))
-    .bind(now)
-    .fetch_all(pool)
-    .await?;
     let weekly: Vec<WeekPointDto> = (0..6)
         .map(|i| {
             let from = time::add_days(trend_start, i * 7);
@@ -346,16 +369,6 @@ pub async fn clinician_overview(pool: &PgPool, clinician: &User, now: DateTime<U
         })
         .collect();
 
-    let today_counts: Vec<(String, i64)> = sqlx::query_as(
-        "SELECT status, count(*) FROM dose_events
-         WHERE patient_id = ANY($1) AND scheduled_for >= $2 AND scheduled_for < $3
-         GROUP BY status",
-    )
-    .bind(&ids)
-    .bind(time::start_of_day(today))
-    .bind(time::start_of_day(time::add_days(today, 1)))
-    .fetch_all(pool)
-    .await?;
     let mut today_dto = TodayCountsDto::default();
     for (s, n) in today_counts {
         match s.as_str() {
@@ -370,8 +383,7 @@ pub async fn clinician_overview(pool: &PgPool, clinician: &User, now: DateTime<U
     // A patient needs a conversation with 2+ misses this week, under 70% on time this
     // week, or one weekday × dose time missed 3+ times in the last 28 days.
     let mut needs_attention: Vec<AttentionDto> = Vec::new();
-    for r in rows.iter().filter(|r| r.has_data && !r.away_now) {
-        let pattern = top_pattern(pool, &r.id, now).await?;
+    for (r, pattern) in pattern_candidates.into_iter().zip(patterns) {
         let mut reasons = Vec::new();
         if let Some(h) = &pattern {
             reasons.push(pattern_reason(h, now));
@@ -398,19 +410,6 @@ pub async fn clinician_overview(pool: &PgPool, clinician: &User, now: DateTime<U
         }
     }
     needs_attention.sort_by(|a, b| b.missed7.cmp(&a.missed7).then(a.on_time_pct7.cmp(&b.on_time_pct7)));
-
-    let recent: Vec<(String, String, String, DateTime<Utc>, String)> = sqlx::query_as(
-        "SELECT p.id, p.full_name, p.nickname, e.scheduled_for, s.label
-         FROM dose_events e
-         JOIN patients p ON p.id = e.patient_id
-         JOIN dose_schedules s ON s.id = e.schedule_id
-         WHERE e.patient_id = ANY($1) AND e.status = 'MISSED' AND e.scheduled_for >= $2
-         ORDER BY e.scheduled_for DESC LIMIT 6",
-    )
-    .bind(&ids)
-    .bind(week_start)
-    .fetch_all(pool)
-    .await?;
 
     Ok(ClinicianOverviewDto {
         patients: rows.len() as i64,

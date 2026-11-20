@@ -63,6 +63,8 @@ export default function Bear3DStage({
   holding,
   speaking,
   className,
+  controls = true,
+  fallback,
 }: {
   mood: BearMood;
   led: LedColor;
@@ -70,15 +72,19 @@ export default function Bear3DStage({
   holding: boolean;
   speaking: boolean;
   className?: string;
+  /** The 2D/3D switch and the "3D unavailable" note. Off on the home page, which always tries 3D. */
+  controls?: boolean;
+  /** What to show without WebGL (defaults to the simulator's 2D bear). */
+  fallback?: ReactNode;
 }) {
   const [webgl] = useState(supportsWebGL);
-  const [view, setView] = useState(readView);
+  const [view, setView] = useState<"3d" | "2d">(() => (controls ? readView() : "3d"));
   const [reducedMotion] = useState(() => window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false);
   const dragYawRef = useRef(0);
   const draggingRef = useRef(false);
   const lastX = useRef(0);
 
-  const flat = <BearFigure mood={mood} led={led} shakeKey={shakeKey} className="relative w-full" />;
+  const flat = fallback ?? <BearFigure mood={mood} led={led} shakeKey={shakeKey} className="relative w-full" />;
   const show3d = webgl && view === "3d";
 
   const onPointerDown = (e: PointerEvent<HTMLDivElement>) => {
@@ -132,12 +138,12 @@ export default function Bear3DStage({
       ) : (
         flat
       )}
-      {!webgl && (
+      {controls && !webgl && (
         <p className="mt-1 text-center text-[11px] font-semibold text-cocoa-600">
           3D view unavailable here (turn on graphics acceleration in the browser) — showing the 2D bear.
         </p>
       )}
-      {webgl && (
+      {controls && webgl && (
         <button
           type="button"
           onClick={toggle}

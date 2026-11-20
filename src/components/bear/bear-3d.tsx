@@ -491,7 +491,7 @@ function YakapBear({ mood, led, shakeKey, holding, speaking, reducedMotion, drag
   return (
     <group ref={turntable}>
       <mesh position={[0, -0.97, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <planeGeometry args={[3.2, 2.3]} />
+        <planeGeometry args={[2.6, 1.9]} />
         <meshBasicMaterial map={tex.shadow} transparent depthWrite={false} />
       </mesh>
 

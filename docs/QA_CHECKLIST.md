@@ -100,6 +100,7 @@ Legend: ✅ verified · 🖥 verified in a desktop/mobile-emulated browser · �
 | 10 | Local `.env` secrets accidentally emptied while editing config | Minor (environment) | Dev setup | lengths 0 | regenerated secrets, restarted servers, reseeded | e2e 43/43 | Teammates generate their own secrets |
 | 11 | Status amber (late) contrast 2.95:1 | Minor | Accessibility | palette validator WARN | kept for separation from “missed”; added labels, legend, tooltips, table view | validator + screenshots | — |
 | 12 | Demo reset failed (500) on the shared Neon DB while the bear page was polling: deadlock, then a pooled connection stuck in a failed transaction | Major | Demo tools (B13) | API log: `deadlock detected`, `current transaction is aborted` | Reset now runs as one transaction (5 s lock timeout) and retries on deadlock/lock timeout/aborted connection | 3 resets during 60 concurrent bear polls: all OK, 0 errors; `cargo test` 42/42; e2e 56/56 | Reset takes ~10 s over Neon |
+| 13 | Clinic dashboard slow on the shared Neon DB: patient list ~8 s, overview 4–6 s, dose log 4–5 s | Major (demo risk) | Clinic dashboard (D2–D4) | `curl` timings; SQLx query log: 41 sequential queries per patient list, plus a ping before each | Per-patient reads and the overview totals run concurrently; pool no longer pings before every query (idle connections close after 60 s) | typical 0.6–1.2 s per screen; `cargo test` 42/42; e2e 56/56 | Occasional 2–3 s spikes from Wi-Fi jitter to Singapore |
 
 ## Known limitations (not defects)
 

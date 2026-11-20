@@ -1,6 +1,6 @@
 import { Hospital, Users } from "lucide-react";
 import type { ReactNode } from "react";
-import { Bear } from "@/components/bear/bear-figure";
+import { HeroBear } from "@/components/bear/hero-bear";
 import { ClockCard, HeroActions, Journeys, LiveStrip, RoleCards, VoiceCard } from "@/components/launcher/launcher";
 import { BearMark, Logo } from "@/components/shared/logo";
 import { Parallax, Reveal } from "@/components/ui/reveal";
@@ -90,7 +90,7 @@ export default function LauncherPage() {
               />
             </Parallax>
             <Parallax speed={0.1} className="relative">
-              <Bear expression="happy" motion="breathe" className="w-[230px] tablet:w-[260px] min-[1100px]:w-[320px]" />
+              <HeroBear className="w-[230px] tablet:w-[260px] min-[1100px]:w-[320px]" />
             </Parallax>
             <div className="absolute bottom-0 left-1/2 -translate-x-1/2 tablet:right-0 tablet:bottom-9 tablet:left-auto tablet:translate-x-0">
               <Parallax speed={-0.06}>

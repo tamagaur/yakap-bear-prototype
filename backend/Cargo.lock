@@ -2484,6 +2484,7 @@ dependencies = [
  "bcrypt",
  "chrono",
  "dotenvy",
+ "futures-util",
  "http-body-util",
  "jsonwebtoken",
  "serde",
