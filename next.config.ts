@@ -15,6 +15,9 @@ const API_URL = (process.env.API_URL || "http://localhost:8080").replace(/\/$/, 
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
+  // The floating "N" dev badge sat over the clinic sidebar's Sign out button during demos.
+  // Compile and runtime errors are still shown.
+  devIndicators: false,
   experimental: {
     // The dev disk cache kept serving an old Tailwind stylesheet after component edits, even
     // across restarts (classes added in .tsx files never appeared). Off for dev only, so a

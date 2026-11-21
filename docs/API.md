@@ -67,7 +67,7 @@ Key shapes:
   "doseEventId": "ev_…", "smsCount": 2 }
 // Patient
 { "id": "pat_rosa", "fullName": "Rosa Santos", "nickname": "Lola Rosa", "birthYear": 1958, "notes": null,
-  "relationship": "Daughter", "device": { "id": "BEAR-0001", "batteryPct": 82, "lowBattery": false, "online": true, "lastSeenAt": "…" },
+  "relationship": "Granddaughter", "device": { "id": "BEAR-0001", "batteryPct": 82, "lowBattery": false, "online": true, "lastSeenAt": "…" },
   "plan": { "includedUntil": "…", "daysLeft": 138, "status": "INCLUDED" }, "awayNow": false }
 ```
 

@@ -39,6 +39,13 @@ function Bar({ value }: { value: number | null }) {
   );
 }
 
+/** Display order: patients who most need a conversation first (most misses, then lowest on-time), no data last. */
+function byAttention(a: ClinicPatientRowDTO, b: ClinicPatientRowDTO) {
+  if (a.hasData !== b.hasData) return a.hasData ? -1 : 1;
+  if (a.missed7 !== b.missed7) return b.missed7 - a.missed7;
+  return (a.onTimePct7 ?? 101) - (b.onTimePct7 ?? 101) || a.fullName.localeCompare(b.fullName);
+}
+
 /** 4-week mini sparkline of weekly on-time percentages (oldest → newest). */
 function Sparkline({ spark }: { spark: (number | null)[] }) {
   const valid = spark.filter((v): v is number => v !== null);
@@ -80,7 +87,7 @@ function Sparkline({ spark }: { spark: (number | null)[] }) {
           ) : (
             <ArrowRight className="size-3.5" />
           )}
-          {diff > 0 ? `+${diff}%` : diff < 0 ? `${diff}%` : "0%"}
+          {diff > 0 ? `+${diff} pts` : diff < 0 ? `−${Math.abs(diff)} pts` : "±0 pts"}
         </span>
       )}
     </div>
@@ -171,7 +178,7 @@ function PatientList() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-cocoa-100">
-                {data?.patients.map((p) => (
+                {[...(data?.patients ?? [])].sort(byAttention).map((p) => (
                   <tr key={p.id} className="group transition-colors duration-200 hover:bg-cream/60">
                     <td className="px-5 py-3.5">
                       <Link href={`/clinic/patients/${p.id}`} className="block focus:outline-none">
@@ -192,7 +199,11 @@ function PatientList() {
                     </td>
                     <td className="px-3 py-3.5">{p.hasData ? <Bar value={p.adherencePct30} /> : <span className="text-cocoa-400">—</span>}</td>
                     <td className="px-3 py-3.5">
-                      <span className={clsx("font-extrabold tabular", p.missed7 > 0 ? "text-missed-ink" : "text-cocoa-500")}>{p.missed7}</span>
+                      {p.hasData ? (
+                        <span className={clsx("font-extrabold tabular", p.missed7 > 0 ? "text-missed-ink" : "text-cocoa-500")}>{p.missed7}</span>
+                      ) : (
+                        <span className="text-cocoa-400">—</span>
+                      )}
                     </td>
                     <td className="px-3 py-3.5">
                       {p.awayNow ? (
@@ -219,7 +230,8 @@ function PatientList() {
         )}
       </Card>
       <p className="mt-3 text-xs font-semibold text-cocoa-500">
-        Self-reported by paw hold on the bear (or corrected by family). Away-mode days are excluded from percentages.
+        Sorted so patients who most need attention come first. Self-reported by paw hold on the bear (or corrected by
+        family). Away-mode days are excluded from percentages.
       </p>
     </>
   );

@@ -108,7 +108,7 @@ check("9–10. Leave it unacknowledged and jump past the late period", r.status 
 const alerts = (await ana.get("/api/patients/pat_rosa/alerts")).data;
 check("11. Missed-dose alert generated", alerts.alerts.length === alertsBefore + 1 && alerts.alerts[0].type === "MISSED_DOSE", alerts.alerts[0]?.title);
 const sms = (await ana.get("/api/patients/pat_rosa/sms")).data.messages;
-check("12–13. Family sees the alert and 2 simulated SMS (Ana, Ben)", sms.length === smsBefore + 2, sms.at(-1)?.body.slice(0, 70) + "…");
+check("12–13. Family sees the alert and 2 simulated SMS (Ana, Mia)", sms.length === smsBefore + 2, sms.at(-1)?.body.slice(0, 70) + "…");
 const missedAlert = alerts.alerts[0];
 
 // 14–18 clinic + consent
@@ -139,7 +139,7 @@ check("    Access removed immediately", (await doctor.get("/api/clinic/patients/
 r = await ana.post(`/api/doses/${missedAlert.doseEventId}/correct`, { toStatus: "TAKEN", reason: "ok" });
 check("    A correction without a real explanation is rejected", r.status === 400, r.data.error?.message);
 const missedDose = (await ana.get("/api/patients/pat_rosa/doses?status=MISSED")).data.doses.find((d) => d.id === missedAlert.doseEventId);
-r = await ana.post(`/api/doses/${missedAlert.doseEventId}/correct`, { toStatus: "LATE", takenAt: new Date(new Date(missedDose.onTimeEnd).getTime() + 10 * 60000).toISOString(), reason: "Mama took it at 8:40 AM before leaving for the market." });
+r = await ana.post(`/api/doses/${missedAlert.doseEventId}/correct`, { toStatus: "LATE", takenAt: new Date(new Date(missedDose.onTimeEnd).getTime() + 10 * 60000).toISOString(), reason: "Lola took it at 8:40 AM before leaving for the market." });
 check("19. Family corrects the missed dose (with reason)", r.status === 200 && r.data.dose.status === "LATE" && r.data.dose.originalStatus === "MISSED", `corrections: ${r.data.dose?.corrections.length}`);
 const resolved = (await ana.get("/api/patients/pat_rosa/alerts")).data.alerts.find((a) => a.id === missedAlert.id);
 check("    The missed-dose alert is resolved by the correction", !!resolved?.resolvedAt);

@@ -62,7 +62,7 @@ Shared demo-only password: **`yakap-demo-2026`**
 
 | Email | Role | Notes |
 |---|---|---|
-| `family@yakap.demo` | Family | Ana Santos — daughter of **Lola Rosa** (bear `BEAR-0001`) |
+| `family@yakap.demo` | Family | Ana Santos — granddaughter of **Lola Rosa** (bear `BEAR-0001`) |
 | `doctor@yakap.demo` | Clinician | Dr. Paolo Reyes — consent from Rosa, Miguel, Teresa, Carmela; **not** Jun (revoked) |
 | `admin@yakap.demo` | Clinic admin | Carla Dizon — audit log + plan, no patient records |
 | `liza@yakap.demo`, `mark@yakap.demo` | Clinicians | other clinicians for the consent directory |

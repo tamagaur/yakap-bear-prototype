@@ -22,7 +22,10 @@ export function DailyChart({ daily }: { daily: Day[] }) {
   const [hover, setHover] = useState<number | null>(null);
   const [showTable, setShowTable] = useState(false);
   const max = Math.max(1, ...daily.map((d) => d.taken + d.late + d.missed + d.away));
-  const H = 120;
+  const H = 168;
+  // Short ranges get a label under every day; long ranges only at the ends.
+  const labelEach = daily.length <= 10;
+  const dayLabel = (i: number) => (i === daily.length - 1 ? "Today" : formatDateKey(daily[i].date));
   const unit = (H - 8) / max;
   const h = hover !== null ? daily[hover] : null;
 
@@ -114,10 +117,21 @@ export function DailyChart({ daily }: { daily: Day[] }) {
               );
             })}
           </div>
-          <div className="mt-1.5 flex justify-between text-[11px] font-semibold text-cocoa-500 tabular">
-            <span>{daily[0] && formatDateKey(daily[0].date)}</span>
-            <span>{daily.at(-1) && formatDateKey(daily.at(-1)!.date)}</span>
-          </div>
+          {labelEach ? (
+            <div className="mt-1.5 flex gap-[3px] text-[11px] font-semibold text-cocoa-500 tabular">
+              {daily.map((d, i) => (
+                <span key={d.date} className={i === daily.length - 1 ? "flex-1 text-center font-bold text-cocoa-700" : "flex-1 text-center"}>
+                  {dayLabel(i)}
+                </span>
+              ))}
+            </div>
+          ) : (
+            <div className="mt-1.5 flex justify-between text-[11px] font-semibold text-cocoa-500 tabular">
+              <span>{daily[0] && formatDateKey(daily[0].date)}</span>
+              <span className="font-bold text-cocoa-700">Today</span>
+            </div>
+          )}
+          <p className="mt-2 text-[11px] font-semibold text-cocoa-500">Today shows only doses already logged, missed or excused; later doses appear once they happen.</p>
           {h && hover !== null && (
             <div
               role="status"

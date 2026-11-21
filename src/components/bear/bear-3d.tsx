@@ -16,7 +16,7 @@ import type { BearMood, LedColor } from "@/components/bear/bear-figure";
  *   • vibration     = reminder buzz, short buzz when a squeeze isn't counted
  * It sits on a slow display turntable and can be dragged to turn.
  *
- * Fur is drawn with shell texturing: each furry part is drawn ~20 times, each shell a little
+ * Fur is drawn with shell texturing: each furry part is drawn ~28 times (14 on phones), each shell a little
  * further out along the surface normal, keeping only the pixels where a strand is still tall
  * enough. No model file, no extra libraries. All rules (3-second hold, dose window, reminders,
  * battery) stay in use-bear-device.ts / use-hold-gesture.ts.
@@ -34,8 +34,9 @@ export interface Bear3DProps {
   draggingRef: MutableRefObject<boolean>;
 }
 
-const FUR = { root: "#9c5c2b", tip: "#efb67c" };
-const CREAM = { root: "#e6c59a", tip: "#fff4e2" };
+// Warm milk-chocolate teddy plush; the cream snout, belly and inner ears stand out against it.
+const FUR = { root: "#6e3d1d", tip: "#b67a4a" };
+const CREAM = { root: "#efdcbd", tip: "#fffaf2" };
 const C = {
   pad: "#f3d5ae",
   bean: "#c98e5c",
@@ -45,7 +46,7 @@ const C = {
   collarDeep: "#23746a",
   ring: "#4cc3c9",
   ringSoft: "#9adfe6",
-  blush: "#f2a19a",
+
 };
 
 const LED: Record<LedColor, { color: string; glow: (t: number) => number }> = {
@@ -56,59 +57,26 @@ const LED: Record<LedColor, { color: string; glow: (t: number) => number }> = {
 };
 
 // ── Fur (shell texturing) ──────────────────────────────────────────────────────
-
-let strandTexture: THREE.DataTexture | null = null;
-
-/** Strand heights: per-texel random height, gathered into soft tufts. */
-function strands() {
-  if (strandTexture) return strandTexture;
-  const size = 256;
-  const data = new Uint8Array(size * size * 4);
-  // Value noise on a 24×24 grid (wrapping), smoothly interpolated: irregular tufts, no visible pattern.
-  const grid = 24;
-  const cells = Array.from({ length: grid * grid }, () => Math.random());
-  const cell = (gx: number, gy: number) => cells[((gy + grid) % grid) * grid + ((gx + grid) % grid)];
-  const smooth = (t: number) => t * t * (3 - 2 * t);
-  const tuft = (x: number, y: number) => {
-    const fx = (x / size) * grid;
-    const fy = (y / size) * grid;
-    const x0 = Math.floor(fx);
-    const y0 = Math.floor(fy);
-    const tx = smooth(fx - x0);
-    const ty = smooth(fy - y0);
-    const top = cell(x0, y0) * (1 - tx) + cell(x0 + 1, y0) * tx;
-    const bottom = cell(x0, y0 + 1) * (1 - tx) + cell(x0 + 1, y0 + 1) * tx;
-    return top * (1 - ty) + bottom * ty;
-  };
-  for (let y = 0; y < size; y += 1) {
-    for (let x = 0; x < size; x += 1) {
-      const h = Math.random() * (0.62 + 0.38 * tuft(x, y));
-      const v = Math.floor(Math.min(1, h) * 255);
-      const i = (y * size + x) * 4;
-      data[i] = data[i + 1] = data[i + 2] = v;
-      data[i + 3] = 255;
-    }
-  }
-  const tex = new THREE.DataTexture(data, size, size, THREE.RGBAFormat);
-  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-  tex.magFilter = THREE.NearestFilter;
-  tex.minFilter = THREE.LinearMipmapLinearFilter;
-  tex.generateMipmaps = true;
-  tex.needsUpdate = true;
-  strandTexture = tex;
-  return tex;
-}
+//
+// Strands are drawn procedurally in the shader: each cell of a grid laid over the part's UVs holds
+// one round strand that tapers toward its tip, leans a little with its neighbours (soft clumps) and
+// is shaded softer toward its edge, so the plush reads as soft and fluffy instead of grainy.
 
 const FUR_VERTEX = /* glsl */ `
   uniform float uShell;
   uniform float uLength;
+  uniform float uGravity;
+  uniform vec3 uInvScale;
   varying vec2 vUv;
   varying vec3 vNormal;
   varying vec3 vView;
+  varying vec3 vObj;
   void main() {
-    vec3 p = position + normal * uLength * uShell;
-    p.y -= uLength * 0.35 * uShell * uShell; // tips settle a little, like real plush
+    // uInvScale undoes the part's own scale, so fur is equally long on big and small parts.
+    vec3 p = position + normal * uLength * uShell * uInvScale;
+    p.y -= uLength * uGravity * uShell * uShell * uInvScale.y; // tips settle a little, like real plush
     vUv = uv;
+    vObj = position;
     vNormal = normalize(normalMatrix * normal);
     vec4 mv = modelViewMatrix * vec4(p, 1.0);
     vView = -mv.xyz;
@@ -117,78 +85,235 @@ const FUR_VERTEX = /* glsl */ `
 `;
 
 const FUR_FRAGMENT = /* glsl */ `
-  uniform sampler2D uStrands;
-  uniform vec2 uRepeat;
   uniform float uShell;
+  uniform vec2 uCells;
+  uniform float uLean;
   uniform vec3 uRoot;
   uniform vec3 uTip;
+  uniform float uPatchOn;
+  uniform vec3 uPatchAt;
+  uniform float uPatchR;
+  uniform float uPatchH;
+  uniform vec3 uPatchRoot;
+  uniform vec3 uPatchTip;
+  uniform float uBlushOn;
+  uniform vec3 uBlush0;
+  uniform vec3 uBlush1;
+  uniform float uBlushR;
+  uniform vec3 uBlushColor;
   varying vec2 vUv;
   varying vec3 vNormal;
   varying vec3 vView;
+  varying vec3 vObj;
+
+  float hash(vec2 p) {
+    p = fract(p * vec2(123.34, 456.21));
+    p += dot(p, p + 45.32);
+    return fract(p.x * p.y);
+  }
+  // Value noise that wraps around U (no seam where the UVs meet).
+  float noiseU(vec2 p, float period) {
+    vec2 i = floor(p);
+    vec2 f = fract(p);
+    f = f * f * (3.0 - 2.0 * f);
+    float x0 = mod(i.x, period);
+    float x1 = mod(i.x + 1.0, period);
+    float a = hash(vec2(x0, i.y));
+    float b = hash(vec2(x1, i.y));
+    float c = hash(vec2(x0, i.y + 1.0));
+    float d = hash(vec2(x1, i.y + 1.0));
+    return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
+  }
+
   void main() {
-    float h = texture2D(uStrands, vUv * uRepeat).r;
-    if (uShell > 0.0 && h < uShell) discard;
+    vec2 uv = vUv * uCells;
+    float period = uCells.x / 9.0;
+    vec2 tuftUv = uv / 9.0;
+    float tuft = noiseU(tuftUv * 2.0 + 5.0, period * 2.0);
+    // Strands lean together in soft clumps, more toward their tips.
+    vec2 lean = vec2(noiseU(tuftUv, period), noiseU(tuftUv + 31.7, period)) - 0.5;
+    uv -= lean * uLean * uShell;
+    vec2 cell = floor(uv);
+    vec2 f = fract(uv) - 0.5;
+    vec2 jitter = vec2(hash(cell + 3.1), hash(cell + 9.7)) - 0.5;
+    float d = length(f - jitter * 0.35);
+
+    // Inner-ear style panel: a different colour and a shorter pile.
+    float pm = uPatchOn * (1.0 - smoothstep(uPatchR * 0.9, uPatchR, distance(vObj, uPatchAt)));
+    float height = (0.6 + 0.4 * hash(cell)) * (0.72 + 0.28 * tuft) * mix(1.0, uPatchH, pm);
+
+    // Each strand is shaded darker toward its edge, which reads as soft and round. (The fur stays
+    // fully opaque: see-through strand edges would let the page behind show through the canvas.)
+    float edge = 1.0;
+    if (uShell > 0.0) {
+      if (uShell > height) discard;
+      float radius = 0.6 * (1.0 - uShell / height) + 0.08; // round strands that taper to a soft tip
+      if (d > radius) discard;
+      edge = mix(0.86, 1.0, 1.0 - smoothstep(radius * 0.35, radius, d));
+    }
+
     vec3 n = normalize(vNormal);
     vec3 v = normalize(vView);
     // Camera-fixed key light from the upper right + soft wrap-around fill (matches the scene lights).
     vec3 key = normalize(vec3(0.45, 0.65, 0.6));
-    float wrap = clamp((dot(n, key) + 0.55) / 1.55, 0.0, 1.0);
+    float wrap = clamp((dot(n, key) + 0.6) / 1.6, 0.0, 1.0);
     float fill = clamp((dot(n, normalize(vec3(-0.6, 0.2, 0.75))) + 1.0) * 0.5, 0.0, 1.0);
-    vec3 base = mix(uRoot, uTip, smoothstep(0.0, 1.0, uShell));
-    float occlusion = mix(0.42, 1.0, pow(uShell, 0.7));
-    vec3 color = base * (0.32 + 0.78 * wrap + 0.18 * fill) * occlusion;
-    // Velvet sheen at grazing angles brightens the fluffy silhouette.
-    float rim = pow(1.0 - clamp(dot(n, v), 0.0, 1.0), 2.4);
-    color += uTip * rim * 0.55 * uShell;
+
+    vec3 root = mix(uRoot, uPatchRoot, pm);
+    vec3 tip = mix(uTip, uPatchTip, pm);
+    vec3 base = mix(root, tip, smoothstep(0.0, 0.9, uShell));
+    base *= 0.95 + 0.1 * tuft; // gentle tonal variation, like real plush
+    // Dyed rosy cheeks.
+    float blush = uBlushOn * max(
+      1.0 - smoothstep(0.0, uBlushR, distance(vObj, uBlush0)),
+      1.0 - smoothstep(0.0, uBlushR, distance(vObj, uBlush1))
+    );
+    base = mix(base, uBlushColor, blush * 0.42);
+
+    float occlusion = mix(0.56, 1.0, pow(uShell, 0.6));
+    vec3 color = base * (0.36 + 0.66 * wrap + 0.14 * fill) * occlusion * edge;
+    // Soft sheen on the strand tips.
+    float spec = pow(clamp(dot(n, normalize(key + v)), 0.0, 1.0), 16.0);
+    color += mix(vec3(1.0, 0.9, 0.76), tip, 0.4) * spec * 0.12 * uShell;
+    // Backlit halo along the silhouette: the "fluffy" edge.
+    float rim = pow(1.0 - clamp(dot(n, v), 0.0, 1.0), 2.0);
+    color += mix(tip, vec3(1.0, 0.9, 0.78), 0.15) * rim * 0.45 * pow(uShell, 1.3);
+
     gl_FragColor = vec4(color, 1.0);
     #include <tonemapping_fragment>
     #include <colorspace_fragment>
   }
 `;
 
-function furMaterial(shell: number, length: number, root: string, tip: string, repeat: [number, number]) {
+type Vec3 = [number, number, number];
+type FurColors = { root: string; tip: string };
+/** A differently coloured, shorter-pile area of one fur part (e.g. the inside of an ear). */
+type FurPatch = { at: Vec3; radius: number; colors: FurColors; height: number };
+
+/** Distance between strands, in scene units. */
+const STRAND = 0.015;
+
+/** Strand grid size for a part whose UVs span `span` scene units (U wraps, so it stays a multiple of 9). */
+function strandCells([u, v]: [number, number]): [number, number] {
+  return [Math.max(9, Math.round(u / STRAND / 9) * 9), Math.max(4, Math.round(v / STRAND))];
+}
+
+/** UV span of an ellipsoid built from the unit sphere. */
+function ellipsoidSpan(rx: number, ry: number, rz: number): [number, number] {
+  const r = (rx + ry + rz) / 3;
+  return [2 * Math.PI * r, Math.PI * r];
+}
+
+const BLUSH_COLOR = "#f2a5a0";
+
+function furMaterial(
+  shell: number,
+  o: {
+    length: number;
+    cells: [number, number];
+    colors: FurColors;
+    invScale: Vec3;
+    lean: number;
+    gravity: number;
+    patch?: FurPatch;
+    blush?: [Vec3, Vec3];
+    blushRadius: number;
+  },
+) {
+  const patch = o.patch;
   return new THREE.ShaderMaterial({
     vertexShader: FUR_VERTEX,
     fragmentShader: FUR_FRAGMENT,
     uniforms: {
       uShell: { value: shell },
-      uLength: { value: length },
-      uStrands: { value: strands() },
-      uRepeat: { value: new THREE.Vector2(...repeat) },
-      uRoot: { value: new THREE.Color(root) },
-      uTip: { value: new THREE.Color(tip) },
+      uLength: { value: o.length },
+      uGravity: { value: o.gravity },
+      uInvScale: { value: new THREE.Vector3(...o.invScale) },
+      uCells: { value: new THREE.Vector2(...o.cells) },
+      uLean: { value: o.lean },
+      uRoot: { value: new THREE.Color(o.colors.root) },
+      uTip: { value: new THREE.Color(o.colors.tip) },
+      uPatchOn: { value: patch ? 1 : 0 },
+      uPatchAt: { value: new THREE.Vector3(...(patch?.at ?? [0, 0, 0])) },
+      uPatchR: { value: patch?.radius ?? 0 },
+      uPatchH: { value: patch?.height ?? 1 },
+      uPatchRoot: { value: new THREE.Color(patch?.colors.root ?? o.colors.root) },
+      uPatchTip: { value: new THREE.Color(patch?.colors.tip ?? o.colors.tip) },
+      uBlushOn: { value: o.blush ? 1 : 0 },
+      uBlush0: { value: new THREE.Vector3(...(o.blush?.[0] ?? [0, 0, 0])) },
+      uBlush1: { value: new THREE.Vector3(...(o.blush?.[1] ?? [0, 0, 0])) },
+      uBlushR: { value: o.blushRadius },
+      uBlushColor: { value: new THREE.Color(BLUSH_COLOR) },
     },
   });
 }
 
 /** How many shells: fewer on small screens so phones stay smooth. */
-const SHELLS = typeof window !== "undefined" && window.innerWidth < 600 ? 12 : 22;
+const SHELLS = typeof window !== "undefined" && window.innerWidth < 600 ? 14 : 28;
 
 function Fur({
   geometry,
+  span,
   colors = FUR,
-  length = 0.06,
-  repeat = [3, 1.6],
+  length = 0.062,
   shells = SHELLS,
+  lean = 1.1,
+  gravity = 0.4,
+  patch,
+  blush,
+  blushRadius = 0.22,
   position,
   rotation,
-  scale,
+  scale = [1, 1, 1],
   children,
 }: {
   geometry: THREE.BufferGeometry;
-  colors?: { root: string; tip: string };
+  /** Size of the part's UV area in scene units (sets how many strands it gets). */
+  span: [number, number];
+  colors?: FurColors;
+  /** Fur length in scene units, the same on every part whatever its scale. */
   length?: number;
-  repeat?: [number, number];
   shells?: number;
-  position?: [number, number, number] | THREE.Vector3;
-  rotation?: [number, number, number];
-  scale?: [number, number, number];
+  lean?: number;
+  gravity?: number;
+  patch?: FurPatch;
+  /** Cheek centres in the part's own (unscaled) coordinates. */
+  blush?: [Vec3, Vec3];
+  blushRadius?: number;
+  position?: Vec3 | THREE.Vector3;
+  rotation?: Vec3;
+  scale?: Vec3;
   children?: ReactNode;
 }) {
-  const [rx, ry] = repeat;
+  const key = JSON.stringify({ span, colors, length, shells, lean, gravity, patch, blush, blushRadius, scale });
   const materials = useMemo(
-    () => Array.from({ length: shells }, (_, i) => furMaterial(i / (shells - 1), length, colors.root, colors.tip, [rx, ry])),
-    [shells, length, colors.root, colors.tip, rx, ry],
+    () => {
+      const o = JSON.parse(key) as {
+        span: [number, number];
+        colors: FurColors;
+        length: number;
+        shells: number;
+        lean: number;
+        gravity: number;
+        patch?: FurPatch;
+        blush?: [Vec3, Vec3];
+        blushRadius: number;
+        scale: Vec3;
+      };
+      const opts = {
+        length: o.length,
+        cells: strandCells(o.span),
+        colors: o.colors,
+        invScale: o.scale.map((s) => 1 / s) as Vec3,
+        lean: o.lean,
+        gravity: o.gravity,
+        patch: o.patch,
+        blush: o.blush,
+        blushRadius: o.blushRadius,
+      };
+      return Array.from({ length: o.shells }, (_, i) => furMaterial(i / (o.shells - 1), opts));
+    },
+    [key],
   );
   return (
     <group position={position} rotation={rotation}>
@@ -232,14 +357,16 @@ function bodyFrontZ(y: number) {
   return 0;
 }
 
-const HEAD = { y: 1.12, rx: 0.95, ry: 0.85, rz: 0.82 };
+// A big round head over a smaller body, like a baby-proportioned teddy.
+const HEAD = { y: 1.1, rx: 1.0, ry: 0.88, rz: 0.84 };
 /** Point on the head's front surface (head-local coordinates). */
 function headSurface(x: number, y: number, lift = 0) {
   const k = 1 - (x / HEAD.rx) ** 2 - (y / HEAD.ry) ** 2;
   return new THREE.Vector3(x, y, HEAD.rz * Math.sqrt(Math.max(0, k)) + lift);
 }
 
-const MUZZLE = { y: -0.22, z: 0.6, rx: 0.4, ry: 0.3, rz: 0.25 };
+// A small, rounded snout that stands out from the face fur.
+const MUZZLE = { y: -0.25, z: 0.64, rx: 0.36, ry: 0.27, rz: 0.26 };
 function muzzleZ(x: number, y: number, lift = 0) {
   const k = 1 - (x / MUZZLE.rx) ** 2 - ((y - MUZZLE.y) / MUZZLE.ry) ** 2;
   return MUZZLE.z + MUZZLE.rz * Math.sqrt(Math.max(0, k)) + lift;
@@ -438,6 +565,10 @@ function YakapBear({ mood, led, shakeKey, holding, speaking, reducedMotion, drag
   const geo = useMemo(
     () => ({
       sphere: new THREE.SphereGeometry(1, 64, 48),
+      // Spheres turned so their poles (where strands bunch up) face forward/back: hidden under the
+      // snout and at the back of the head, and under the inner-ear panel.
+      headSphere: new THREE.SphereGeometry(1, 72, 54).rotateX(1.86),
+      frontSphere: new THREE.SphereGeometry(1, 48, 36).rotateX(Math.PI / 2),
       body: new THREE.LatheGeometry(BODY_PROFILE, 72),
       arm: new THREE.CapsuleGeometry(0.21, 0.26, 12, 32),
       heart: heartGeometry(0.36, 0.1),
@@ -451,7 +582,7 @@ function YakapBear({ mood, led, shakeKey, holding, speaking, reducedMotion, drag
 
   // Belly panel (cream short-pile oval) and the speaker in its centre.
   const bellyY = -0.3;
-  const bellyZ = 0.3;
+  const bellyZ = 0.34;
   const speakerZ = bellyZ + 0.6 + 0.03;
 
   useFrame(({ clock }, delta) => {
@@ -497,15 +628,16 @@ function YakapBear({ mood, led, shakeKey, holding, speaking, reducedMotion, drag
 
       <group ref={toy}>
         {/* body */}
-        <Fur geometry={geo.body} scale={[1, 1, BODY_DEPTH]} repeat={[4, 2]} />
+        <Fur geometry={geo.body} span={[2 * Math.PI * 0.86, 2.3]} scale={[1, 1, BODY_DEPTH]} />
 
-        {/* belly: cream oval, turquoise rings, speaker grille */}
+        {/* belly: cream short-pile oval, turquoise rings, speaker grille */}
         <Fur
           geometry={geo.sphere}
+          span={ellipsoidSpan(0.62, 0.62, 0.6)}
           colors={CREAM}
-          length={0.03}
+          length={0.032}
           shells={12}
-          repeat={[5, 2.4]}
+          lean={0.8}
           position={[0, bellyY, bellyZ]}
           scale={[0.62, 0.62, 0.6]}
         />
@@ -527,7 +659,13 @@ function YakapBear({ mood, led, shakeKey, holding, speaking, reducedMotion, drag
         <Rings active={speaking || mood === "reminder"} color="#5fd0d6" origin={[0, bellyY - 0.02, speakerZ + 0.01]} />
 
         {/* back: little round tail and a USB-C charging port */}
-        <Fur geometry={geo.sphere} position={[0, -0.5, -bodyFrontZ(-0.5) - 0.06]} scale={[0.17, 0.16, 0.15]} length={0.07} repeat={[2, 1]} />
+        <Fur
+          geometry={geo.sphere}
+          span={ellipsoidSpan(0.17, 0.16, 0.15)}
+          position={[0, -0.5, -bodyFrontZ(-0.5) - 0.06]}
+          scale={[0.17, 0.16, 0.15]}
+          length={0.075}
+        />
         <group position={[0, -0.18, -bodyFrontZ(-0.18) - 0.05]} rotation={[0, Math.PI, 0]}>
           <mesh>
             <boxGeometry args={[0.16, 0.075, 0.03]} />
@@ -547,9 +685,9 @@ function YakapBear({ mood, led, shakeKey, holding, speaking, reducedMotion, drag
             position={[side * 0.46, -0.6, 0.36]}
             rotation={[0, side * -0.16, 0]}
             scale={[0.34, 0.31, 0.44]}
-            repeat={[2.4, 1.3]}
+            span={ellipsoidSpan(0.34, 0.31, 0.44)}
           >
-            <group position={[0, -0.01, 0.47]}>
+            <group position={[0, -0.01, 0.5]}>
               <PawPad scale={1.05} />
             </group>
           </Fur>
@@ -558,8 +696,8 @@ function YakapBear({ mood, led, shakeKey, holding, speaking, reducedMotion, drag
         {/* short chubby arms; the right paw (viewer's right) holds the squeeze sensor */}
         {[-1, 1].map((side) => (
           <group key={side} ref={side === 1 ? pawArm : undefined} position={[side * 0.72, 0.3, 0.3]} rotation={[-0.75, 0, side * 0.55]}>
-            <Fur geometry={geo.arm} position={[0, -0.27, 0]} repeat={[2, 1.4]} />
-            <group position={[0, -0.47, 0.13]} rotation={[0.7, 0, 0]}>
+            <Fur geometry={geo.arm} span={[2 * Math.PI * 0.21, 0.26 + Math.PI * 0.21]} position={[0, -0.27, 0]} length={0.045} />
+            <group position={[0, -0.5, 0.19]} rotation={[0.7, 0, 0]}>
               <PawPad scale={0.72} glowRef={side === 1 ? sensorMat : undefined} />
             </group>
           </group>
@@ -605,63 +743,75 @@ function YakapBear({ mood, led, shakeKey, holding, speaking, reducedMotion, drag
 
         {/* head — fixed toy face */}
         <group position={[0, HEAD.y, 0.02]}>
-          <Fur geometry={geo.sphere} scale={[HEAD.rx, HEAD.ry, HEAD.rz]} repeat={[4, 2]} />
+          {/* head fur, with rosy cheeks dyed into the plush */}
+          <Fur
+            geometry={geo.headSphere}
+            span={ellipsoidSpan(HEAD.rx, HEAD.ry, HEAD.rz)}
+            scale={[HEAD.rx, HEAD.ry, HEAD.rz]}
+            length={0.058}
+            blush={[
+              [-0.5, -0.23, 0.84],
+              [0.5, -0.23, 0.84],
+            ]}
+          />
 
-          {/* ears with cream inner panels */}
+          {/* big round ears with cream inner panels (short pile) */}
           {[-1, 1].map((side) => (
-            <group key={side} position={[side * 0.68, 0.6, -0.08]} rotation={[0, side * -0.3, side * -0.25]}>
-              <Fur geometry={geo.sphere} scale={[0.27, 0.27, 0.16]} repeat={[2, 1]} />
+            <group key={side} position={[side * 0.7, 0.62, -0.06]} rotation={[0, side * -0.3, side * -0.25]}>
               <Fur
-                geometry={geo.sphere}
-                colors={CREAM}
-                length={0.02}
-                shells={8}
-                position={[0, -0.02, 0.12]}
-                scale={[0.16, 0.16, 0.05]}
-                repeat={[1.5, 1]}
+                geometry={geo.frontSphere}
+                span={ellipsoidSpan(0.31, 0.3, 0.17)}
+                scale={[0.31, 0.3, 0.17]}
+                length={0.055}
+                patch={{ at: [0, -0.12, 0.99], radius: 0.64, colors: CREAM, height: 0.35 }}
               />
             </group>
           ))}
 
-          {/* glossy safety eyes */}
+          {/* glossy safety eyes, set low and wide for a sweet look */}
           {[-1, 1].map((side) => (
-            <group key={side} position={headSurface(side * 0.31, 0.04, 0.012)} rotation={[-0.08, side * 0.38, 0]}>
-              <mesh scale={[1, 1.06, 0.72]}>
-                <sphereGeometry args={[0.1, 36, 28]} />
+            <group key={side} position={headSurface(side * 0.3, -0.02, 0.02)} rotation={[-0.08, side * 0.36, 0]}>
+              <mesh scale={[1, 1.08, 0.72]}>
+                <sphereGeometry args={[0.098, 36, 28]} />
                 <meshPhysicalMaterial color={C.eye} roughness={0.05} clearcoat={1} clearcoatRoughness={0.02} />
               </mesh>
-              <mesh position={[-0.03, 0.04, 0.066]}>
-                <sphereGeometry args={[0.022, 16, 12]} />
+              {/* warm brown iris ring, like real plush safety eyes */}
+              <mesh position={[0, 0, 0.069]} scale={[1, 1.08, 1]}>
+                <ringGeometry args={[0.052, 0.074, 40]} />
+                <meshPhysicalMaterial color="#3b2416" roughness={0.1} clearcoat={1} transparent opacity={0.85} />
+              </mesh>
+              <mesh position={[-0.032, 0.042, 0.068]}>
+                <sphereGeometry args={[0.027, 16, 12]} />
                 <meshBasicMaterial color="#ffffff" toneMapped={false} />
               </mesh>
-              <mesh position={[0.025, -0.03, 0.068]}>
-                <sphereGeometry args={[0.009, 12, 8]} />
+              <mesh position={[0.028, -0.032, 0.07]}>
+                <sphereGeometry args={[0.012, 12, 8]} />
                 <meshBasicMaterial color="#ffffff" toneMapped={false} />
               </mesh>
             </group>
-          ))}
-
-          {/* rosy cheeks (dyed fabric) */}
-          {[-1, 1].map((side) => (
-            <mesh key={side} position={headSurface(side * 0.55, -0.16, 0.05)} rotation={[0, side * 0.75, 0]} scale={[1, 0.72, 0.2]}>
-              <sphereGeometry args={[0.13, 24, 16]} />
-              <meshBasicMaterial color={C.blush} transparent opacity={0.38} depthWrite={false} />
-            </mesh>
           ))}
 
           {/* muzzle, nose, mouth */}
           <Fur
             geometry={geo.sphere}
+            span={ellipsoidSpan(MUZZLE.rx, MUZZLE.ry, MUZZLE.rz)}
             colors={CREAM}
-            length={0.022}
-            shells={10}
+            length={0.026}
+            shells={12}
+            lean={0.8}
             position={[0, MUZZLE.y, MUZZLE.z]}
             scale={[MUZZLE.rx, MUZZLE.ry, MUZZLE.rz]}
-            repeat={[2.5, 1.4]}
           />
-          <mesh position={[0, -0.1, muzzleZ(0, -0.1, 0.035)]} rotation={[-0.35, 0, 0]} geometry={geo.nose}>
-            <meshStandardMaterial color="#2c1710" roughness={0.55} />
-          </mesh>
+          <group position={[0, -0.1, muzzleZ(0, -0.1, 0.035)]} rotation={[-0.35, 0, 0]}>
+            <mesh geometry={geo.nose}>
+              <meshStandardMaterial color="#2a150d" roughness={0.6} />
+            </mesh>
+            {/* soft shine on the stitched nose */}
+            <mesh position={[-0.028, 0.03, 0.05]} scale={[1.5, 0.7, 0.4]}>
+              <sphereGeometry args={[0.014, 12, 8]} />
+              <meshBasicMaterial color="#ffffff" transparent opacity={0.22} depthWrite={false} toneMapped={false} />
+            </mesh>
+          </group>
           <Mouth />
         </group>
       </group>
@@ -674,7 +824,8 @@ export default function Bear3D(props: Bear3DProps) {
     <Canvas
       dpr={[1, 2]}
       camera={{ fov: 30, position: [0, 0.75, 6.5], near: 0.1, far: 50 }}
-      gl={{ antialias: true, alpha: true, powerPreference: "high-performance" }}
+      // Neutral tone mapping keeps the warm caramel and teal colours rich (the default film curve greys them).
+      gl={{ antialias: true, alpha: true, powerPreference: "high-performance", toneMapping: THREE.NeutralToneMapping }}
       onCreated={({ camera }) => camera.lookAt(0, 0.52, 0)}
       style={{ touchAction: "pan-y" }}
     >

@@ -66,8 +66,9 @@ const ENTER = ["animate-page-in", "animate-page-in [animation-delay:70ms]", "ani
 function onTimeTrend(curr: number | null, prev: number | null): Trend | null {
   if (curr === null || prev === null) return null;
   const diff = curr - prev;
-  if (diff > 0) return { direction: "up", text: `+${diff}% vs last week`, good: true };
-  if (diff < 0) return { direction: "down", text: `${diff}% vs last week`, good: false };
+  // The change between two percentages is in percentage points (79% → 58% is −21 pts, not −21%).
+  if (diff > 0) return { direction: "up", text: `+${diff} pts vs last week`, good: true };
+  if (diff < 0) return { direction: "down", text: `−${Math.abs(diff)} pts vs last week`, good: false };
   return { direction: "flat", text: "Same as last week" };
 }
 
@@ -89,54 +90,44 @@ function WeeklyTrendCard({ weekly }: { weekly: ClinicianData["weekly"] }) {
         description="Weekly on-time and overall adherence across your consented patients (oldest → this week)."
       />
       <div className="p-5 pt-4">
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+        {/* One column per week: green = on time, amber = late, the empty rest = missed. */}
+        <ol className="grid grid-cols-6 items-end gap-2 sm:gap-4">
           {weekly.map((w, idx) => {
             const isLatest = idx === weekly.length - 1;
             const onTime = w.onTimePct ?? 0;
             const totalAdh = w.adherencePct ?? 0;
             const latePct = Math.max(0, totalAdh - onTime);
             return (
-              <div
-                key={w.from}
-                className={clsx(
-                  "flex flex-col justify-between rounded-xl border p-3.5 transition-colors",
-                  isLatest ? "border-teal/40 bg-mint/25" : "border-line bg-paper",
-                )}
-              >
-                <div className="flex items-center justify-between gap-1">
-                  <span className="text-[11px] font-bold uppercase tracking-wider text-muted">
-                    {isLatest ? "This week" : `Wk -${weekly.length - 1 - idx}`}
-                  </span>
-                  {isLatest && (
-                    <Pill tone="taken" compact>
-                      latest
-                    </Pill>
+              <li key={w.from} className="flex min-w-0 flex-col items-center">
+                <span
+                  className={clsx(
+                    "font-display tabular text-[15px] font-extrabold sm:text-lg",
+                    isLatest ? "text-teal" : "text-cocoa",
                   )}
-                </div>
-                <div className="my-3">
-                  <div className="flex items-baseline justify-between">
-                    <span className="font-display tabular text-2xl font-extrabold text-cocoa">
-                      {w.onTimePct === null ? "—" : `${w.onTimePct}%`}
-                    </span>
-                    <span className="text-body-sm font-semibold text-muted">on time</span>
-                  </div>
-                  <div
-                    className="mt-2 flex h-2.5 w-full overflow-hidden rounded-full bg-cocoa-100"
-                    role="img"
-                    aria-label={`${formatDateKey(w.from)} to ${formatDateKey(w.to)}: ${w.onTimePct ?? 0}% on time, ${w.adherencePct ?? 0}% total adherence (${w.counted} doses)`}
-                  >
-                    <span className="h-full bg-taken transition-all" style={{ width: `${onTime}%` }} />
-                    {latePct > 0 && <span className="h-full bg-late transition-all" style={{ width: `${latePct}%` }} />}
-                  </div>
-                </div>
-                <div className="flex items-center justify-between text-[11px] font-semibold text-muted tabular">
-                  <span>{formatDateKey(w.from)}</span>
-                  <span>{w.counted} doses</span>
-                </div>
-              </div>
+                >
+                  {w.onTimePct === null ? "—" : `${w.onTimePct}%`}
+                </span>
+                <span
+                  className={clsx(
+                    "relative mt-1.5 flex h-32 w-full max-w-[56px] flex-col-reverse overflow-hidden rounded-t-lg rounded-b-sm bg-cocoa-100/70",
+                    isLatest && "ring-2 ring-teal/45 ring-offset-2 ring-offset-white",
+                  )}
+                  role="img"
+                  aria-label={`${formatDateKey(w.from)} to ${formatDateKey(w.to)}: ${w.onTimePct ?? 0}% on time, ${w.adherencePct ?? 0}% total adherence (${w.counted} doses)`}
+                >
+                  <span className="w-full bg-taken transition-[height] duration-500" style={{ height: `${onTime}%` }} />
+                  {latePct > 0 && <span className="w-full bg-late transition-[height] duration-500" style={{ height: `${latePct}%` }} />}
+                </span>
+                <span className={clsx("mt-2 text-center text-[11px] leading-tight font-bold", isLatest ? "text-teal" : "text-muted")}>
+                  {isLatest ? "This week" : `${weekly.length - 1 - idx} wk ago`}
+                </span>
+                <span className="tabular hidden text-center text-[11px] text-muted sm:block">
+                  {formatDateKey(w.from)} · {w.counted} doses
+                </span>
+              </li>
             );
           })}
-        </div>
+        </ol>
         <div className="mt-3 flex flex-wrap items-center gap-4 text-xs font-bold text-cocoa-600">
           <span className="inline-flex items-center gap-1.5">
             <span className="size-2.5 rounded-sm bg-taken" aria-hidden /> Taken on time
@@ -160,6 +151,7 @@ function ClinicianOverview({ c }: { c: ClinicianData }) {
     { label: "Missed", value: c.today.missed, tone: "critical" },
     { label: "Still open", value: c.today.upcoming, tone: "info" },
   ];
+  const todayTotal = today.reduce((n, t) => n + t.value, 0);
   return (
     <div className="space-y-5">
       <div className={`grid grid-cols-2 gap-3 lg:grid-cols-4 ${ENTER[0]}`}>
@@ -268,24 +260,34 @@ function ClinicianOverview({ c }: { c: ClinicianData }) {
 
         <Card className={`flex flex-col ${ENTER[1]}`}>
           <CardHeader title="Today" description="Doses across your patients so far" />
-          <dl className="grid flex-1 auto-rows-fr grid-cols-2 gap-3 p-5">
-            {today.map((t) => (
-              <div
-                key={t.label}
-                className={clsx(
-                  "flex min-h-[84px] flex-col justify-center rounded-xl border bg-white bg-gradient-to-br to-white to-60% px-4 py-3",
-                  KPI_TONES[t.tone].border,
-                  KPI_TONES[t.tone].wash,
-                )}
-              >
-                <dt className="flex items-center gap-1.5 text-body-sm font-bold text-muted">
-                  <span className={clsx("size-2 rounded-full", KPI_TONES[t.tone].dot)} aria-hidden />
-                  {t.label}
-                </dt>
-                <dd className="font-display tabular mt-0.5 text-[28px] leading-tight font-extrabold text-cocoa">{t.value}</dd>
-              </div>
-            ))}
-          </dl>
+          <div className="flex flex-1 flex-col justify-center gap-5 p-5">
+            <p className="flex items-baseline gap-2">
+              <span className="font-display tabular text-[40px] leading-none font-extrabold text-cocoa">{todayTotal}</span>
+              <span className="text-body font-semibold text-muted">
+                {todayTotal === 1 ? "dose scheduled today" : "doses scheduled today"}
+              </span>
+            </p>
+            {todayTotal > 0 && (
+              <span className="flex h-3 w-full gap-0.5 overflow-hidden rounded-full bg-cocoa-100" aria-hidden>
+                {today
+                  .filter((t) => t.value > 0)
+                  .map((t) => (
+                    <span key={t.label} className={clsx("h-full", KPI_TONES[t.tone].dot)} style={{ flexGrow: t.value }} />
+                  ))}
+              </span>
+            )}
+            <dl className="grid grid-cols-2 gap-x-6 gap-y-2.5">
+              {today.map((t) => (
+                <div key={t.label} className="flex items-center justify-between gap-3 border-b border-cocoa-100 pb-2">
+                  <dt className="flex items-center gap-2 text-body font-semibold text-cocoa-700">
+                    <span className={clsx("size-2.5 rounded-full", KPI_TONES[t.tone].dot)} aria-hidden />
+                    {t.label}
+                  </dt>
+                  <dd className="font-display tabular text-xl font-extrabold text-cocoa">{t.value}</dd>
+                </div>
+              ))}
+            </dl>
+          </div>
         </Card>
 
         {c.weekly.length > 0 && <WeeklyTrendCard weekly={c.weekly} />}

@@ -649,7 +649,7 @@ async fn launcher_overview_is_demo_only_and_leaks_no_secrets() {
     assert!(o["latestText"]["body"].as_str().unwrap().contains("Lola Rosa"), "{o}");
     let recipients: Vec<&str> =
         o["latestText"]["recipients"].as_array().unwrap().iter().map(|r| r.as_str().unwrap()).collect();
-    assert_eq!(recipients, ["Ana Santos", "Ben Santos"], "every opted-in contact got the text");
+    assert_eq!(recipients, ["Ana Santos", "Mia Santos"], "every opted-in contact got the text");
 
     // Outside demo mode the endpoint is closed.
     let url = std::env::var("TEST_DATABASE_URL").unwrap();

@@ -110,10 +110,11 @@ pub const PATIENTS: &[SeedPatient] = &[
         birth_year: 1958,
         device_id: "BEAR-0001",
         member_user_id: "user_ana",
-        member_relationship: "Daughter",
+        member_relationship: "Granddaughter",
         contacts: &[
-            SeedContact { name: "Ana Santos", relationship: "Daughter", phone: "+63 917 555 0142", receives_sms: true },
-            SeedContact { name: "Ben Santos", relationship: "Son", phone: "+63 918 555 0199", receives_sms: true },
+            // Same family as the mobile app's sample plan: Ana (granddaughter, app user) and Mia (daughter).
+            SeedContact { name: "Ana Santos", relationship: "Granddaughter", phone: "+63 917 555 0142", receives_sms: true },
+            SeedContact { name: "Mia Santos", relationship: "Daughter", phone: "+63 917 555 0198", receives_sms: true },
         ],
         schedules: &[
             SeedSchedule { id: "sch_rosa_am", label: "Morning", time_of_day: "08:00", pill_note: "2 tablets", since_days: 60, sample_voice: false },
@@ -304,7 +305,7 @@ pub const CORRECTION: SeedCorrection = SeedCorrection {
     patient_key: "rosa",
     days_ago: 9,
     time_of_day: "20:00",
-    reason: "Mama took her 8 PM pills at Tita Nena's house — the bear stayed at home.",
+    reason: "Lola took her 8 PM pills at Tita Nena's house — the bear stayed at home.",
     taken_at_time: "20:10",
     corrected_by_id: "user_ana",
 };

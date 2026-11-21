@@ -88,7 +88,7 @@ export type ResetResultDTO = z.infer<typeof ResetResultSchema>;
 /** Demo-only shared password for the seeded accounts (documented in README). */
 export const DEMO_PASSWORD = "yakap-demo-2026";
 export const DEMO_ACCOUNTS = [
-  { email: "family@yakap.demo", role: "FAMILY", label: "Family — Ana Santos (daughter of Lola Rosa)" },
+  { email: "family@yakap.demo", role: "FAMILY", label: "Family — Ana Santos (granddaughter of Lola Rosa)" },
   { email: "doctor@yakap.demo", role: "CLINICIAN", label: "Clinician — Dr. Paolo Reyes" },
   { email: "admin@yakap.demo", role: "CLINIC_ADMIN", label: "Clinic admin — Carla Dizon" },
 ] as const;

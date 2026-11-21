@@ -147,10 +147,19 @@ export default function Bear3DStage({
         <button
           type="button"
           onClick={toggle}
-          className="absolute -top-2 -left-10 rounded-full border border-cocoa-200 bg-white/85 px-2.5 py-1 text-[11px] font-extrabold tracking-[0.06em] text-cocoa-700 shadow-sm hover:bg-white mobile:-left-12"
+          className="absolute bottom-2 -left-11 inline-flex items-center rounded-full bg-white/90 p-0.5 text-[11px] font-extrabold text-cocoa-600 shadow-sm ring-1 ring-cocoa-200 transition-colors hover:bg-white mobile:-left-14"
           aria-label={view === "3d" ? "Show the flat 2D bear" : "Show the 3D bear"}
+          title="Switch between the 3D and the flat bear"
         >
-          {view === "3d" ? "2D" : "3D"}
+          {(["3d", "2d"] as const).map((v) => (
+            <span
+              key={v}
+              className={clsx("rounded-full px-2 py-0.5 uppercase", view === v ? "bg-cocoa text-cream-50" : "text-cocoa-600")}
+              aria-hidden
+            >
+              {v}
+            </span>
+          ))}
         </button>
       )}
     </div>

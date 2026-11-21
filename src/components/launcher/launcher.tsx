@@ -122,8 +122,16 @@ export function ClockCard() {
         </Button>
       </div>
       {error && (
-        <Notice tone="error" className="mt-3" title="The Yakap API isn't reachable">
-          Start the Rust server with <code>npm run dev:api</code>, then reload this page.
+        <Notice tone="error" className="mt-3" title="Can't reach the demo server">
+          <span className="block">Check the internet connection and that the demo server is running.</span>
+          <button
+            type="button"
+            onClick={() => void refresh()}
+            className="mt-2 inline-flex min-h-9 items-center gap-1.5 rounded-full border border-current/25 px-3 text-body-sm font-bold hover:bg-white/60"
+          >
+            <RotateCcw className="size-3.5" aria-hidden />
+            Try again
+          </button>
         </Notice>
       )}
       {!error && now && !demoMode && (
@@ -436,7 +444,7 @@ function Metric({
   );
 }
 
-/** "Ana and Ben", "Ana, Ben and Carl". */
+/** "Ana and Mia", "Ana, Mia and Carl". */
 function nameList(names: string[]) {
   const first = names.map(firstName);
   return first.length <= 1 ? (first[0] ?? "") : `${first.slice(0, -1).join(", ")} and ${first[first.length - 1]}`;

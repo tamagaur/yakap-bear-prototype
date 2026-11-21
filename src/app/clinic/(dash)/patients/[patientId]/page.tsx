@@ -305,7 +305,7 @@ function Detail() {
             </>
           )}
 
-          <div className="grid gap-5 lg:grid-cols-3">
+          <div className="grid gap-5 lg:grid-cols-3 lg:items-start">
             {hasData && (
               <Card className="lg:col-span-2">
                 <CardHeader

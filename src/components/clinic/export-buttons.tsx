@@ -200,7 +200,16 @@ export function ExportButtons({
   };
 
   return (
-    <div className="flex flex-wrap gap-2">
+    <div className="flex flex-wrap items-center gap-2">
+      <Button
+        variant="teal"
+        loading={busy === "print"}
+        disabled={busy !== null}
+        icon={<Printer className="size-4" />}
+        onClick={printCheckup}
+      >
+        Print check-up sheet
+      </Button>
       <a
         href={csvHref}
         download
@@ -211,15 +220,6 @@ export function ExportButtons({
       </a>
       <Button variant="secondary" loading={busy === "pdf"} disabled={busy !== null} icon={<FileText className="size-4" />} onClick={pdf}>
         Export PDF
-      </Button>
-      <Button
-        variant="secondary"
-        loading={busy === "print"}
-        disabled={busy !== null}
-        icon={<Printer className="size-4" />}
-        onClick={printCheckup}
-      >
-        Print check-up sheet
       </Button>
     </div>
   );

@@ -112,8 +112,15 @@ function BearSimulator() {
           </div>
 
           {bear.devError && (
-            <Notice tone="error" title="Can't reach the Yakap API" className="mt-4">
-              {errorMessage(bear.devError)} Start the Rust server (<code>npm run dev:api</code>) and reload.
+            <Notice tone="error" title="Can't reach the demo server" className="mx-auto mt-4 max-w-[680px]">
+              <span className="block">Check the internet connection and that the demo server is running.</span>
+              <button
+                type="button"
+                onClick={() => window.location.reload()}
+                className="mt-2 inline-flex min-h-9 items-center rounded-full border border-current/25 px-3 text-body-sm font-bold hover:bg-white/60"
+              >
+                Try again
+              </button>
             </Notice>
           )}
           {bear.connection === "error" && !bear.devError && (
@@ -127,10 +134,10 @@ function BearSimulator() {
             <StageSkeleton />
           ) : (
             bear.device && (
-              <div className="mx-auto mt-6 flex max-w-[680px] flex-col items-center">
+              <div className="mx-auto mt-5 flex max-w-[680px] flex-col items-center">
                 <SpeechBubble kicker={bubble.kicker} text={bubble.text} sub={bubble.sub} speaking={bear.speaking} tone={tone} />
 
-                <div className="relative mt-5 w-[236px] mobile:w-[290px] tablet:w-[320px]">
+                <div className="relative mt-3 w-[236px] mobile:w-[290px] tablet:w-[clamp(250px,33dvh,320px)]">
                   {/* soft spotlight and a felt display base under the toy */}
                   <span
                     className="absolute top-[45%] left-1/2 aspect-square w-[150%] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[radial-gradient(circle,#fffdf8_0,rgb(255_247_232/0.85)_45%,rgb(255_247_232/0)_70%)]"
@@ -159,7 +166,7 @@ function BearSimulator() {
                   />
                 </div>
 
-                <p className="mt-4 inline-flex items-center gap-2.5 rounded-full bg-paper/90 py-1.5 pr-4 pl-2 text-body font-semibold shadow-card ring-1 ring-line/60">
+                <p className="mt-3 inline-flex items-center gap-2.5 rounded-full bg-paper/90 py-1.5 pr-4 pl-2 text-body font-semibold shadow-card ring-1 ring-line/60">
                   <span className="relative grid size-5 place-items-center" aria-hidden>
                     <span className={clsx("absolute inset-0 rounded-full opacity-35 blur-[3px]", HEART_LIGHT[view.led].dot)} />
                     <span className={clsx("relative size-2.5 rounded-full", HEART_LIGHT[view.led].dot)} />
@@ -169,7 +176,7 @@ function BearSimulator() {
                   <span className="text-muted">{HEART_LIGHT[view.led].meaning}</span>
                 </p>
 
-                <div className="mt-5 w-full max-w-[540px]">
+                <div className="mt-4 w-full max-w-[540px]">
                   <DoseCard dose={showDose} kind={state?.activeDose ? "current" : "next"} />
                 </div>
               </div>
